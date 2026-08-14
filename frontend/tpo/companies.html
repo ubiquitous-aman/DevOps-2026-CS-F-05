@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Companies | Placement Portal</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div id="appNavbar"></div>
+<div class="dashboard-shell">
+  <aside class="sidebar" id="appSidebar"></aside>
+  <main class="main-content">
+    <h2 id="pageTitle" class="mb-4 fw-bold text-primary-portal">Manage Companies</h2>
+    <div id="alertBox"></div>
+    <div class="card section-card">
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead>
+              <tr>
+                <th>Company</th>
+                <th>Industry</th>
+                <th>HR Contact</th>
+                <th>Placement Requirement</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="companiesTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Review Company & Drive Modal -->
+<div class="modal fade" id="reviewModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="reviewModalTitle"><i class="bi bi-shield-check me-2"></i>Review Company & Placement Requirements</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="reviewAlert"></div>
+
+        <!-- Section 1: Company Profile (Read-only) -->
+        <div class="card bg-light border-0 p-3 mb-3">
+          <h6 class="fw-bold text-primary mb-2"><i class="bi bi-building me-1"></i>Company Profile</h6>
+          <div class="row g-2 small">
+            <div class="col-md-6"><strong>Company:</strong> <span id="revCompName">—</span></div>
+            <div class="col-md-6"><strong>Industry:</strong> <span id="revIndustry">—</span></div>
+            <div class="col-md-6"><strong>Website:</strong> <span id="revWebsite">—</span></div>
+            <div class="col-md-6"><strong>HR Contact:</strong> <span id="revHrContact">—</span></div>
+            <div class="col-12"><strong>Description:</strong> <span id="revDescription">—</span></div>
+          </div>
+        </div>
+
+        <!-- Section 2: Company-Specified Requirements (Read-only for TPO) -->
+        <div class="card border p-3 mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="fw-bold text-dark mb-0"><i class="bi bi-file-earmark-text me-1"></i>Company's Placement Requirements <span class="badge bg-secondary ms-1">Read-Only</span></h6>
+          </div>
+          <p class="text-muted small mb-2">These requirements are specified directly by the company for campus selection.</p>
+          <div class="row g-2 small bg-white p-2 rounded border" id="companyReqDetails">
+            <div class="col-md-6"><strong>Job Title:</strong> <span id="revJobTitle">—</span></div>
+            <div class="col-md-3"><strong>Package:</strong> <span id="revPackage">—</span></div>
+            <div class="col-md-3"><strong>Job Type:</strong> <span id="revJobType">—</span></div>
+            <div class="col-md-6"><strong>Location:</strong> <span id="revLocation">—</span></div>
+            <div class="col-md-6"><strong>Application Deadline:</strong> <span id="revDeadline">—</span></div>
+            <div class="col-12"><strong>Eligible Branches (Company):</strong> <span id="revBranches">—</span></div>
+            <div class="col-md-3"><strong>Batch:</strong> <span id="revBatch">—</span></div>
+            <div class="col-md-3"><strong>Min CGPA:</strong> <span id="revMinCgpa">—</span></div>
+            <div class="col-md-3"><strong>Max Backlogs:</strong> <span id="revMaxBacklogs">—</span></div>
+            <div class="col-md-3"><strong>10th / 12th %:</strong> <span id="revMinMarks">—</span></div>
+            <div class="col-12 mt-1"><strong>Rounds / Timetable:</strong> <div id="revRounds" class="mt-1"></div></div>
+          </div>
+        </div>
+
+        <!-- Section 3: College & TPO Additional Requirements (Editable by TPO) -->
+        <div class="card border border-warning p-3">
+          <h6 class="fw-bold text-dark mb-2"><i class="bi bi-mortarboard me-1"></i>College / Institutional Additional Requirements <span class="badge bg-warning text-dark ms-1">TPO Added</span></h6>
+          <p class="text-muted small mb-2">TPO can add SKIT institutional requirements (e.g. NPTEL / MOOC completion, minimum attendance, disciplinary clearances) on top of the company's requirements.</p>
+          <form id="tpoReqForm">
+            <div class="mb-3">
+              <label class="form-label fw-semibold small">College Requirements & Certifications</label>
+              <textarea class="form-control" id="collegeRequirements" rows="3"
+                placeholder="e.g. Mandatory completion of 1 NPTEL / SWAYAM course in relevant domain, minimum 75% attendance in final semester, no pending disciplinary warnings."></textarea>
+            </div>
+            <div class="row g-2">
+              <div class="col-md-6">
+                <label class="form-label fw-semibold small">Allowed Branches Override (Optional)</label>
+                <input type="text" class="form-control form-control-sm" id="overrideBranches" placeholder="e.g. CSE, IT, ECE (leave blank to keep company's list)">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold small">Min CGPA Override</label>
+                <input type="number" step="0.1" class="form-control form-control-sm" id="overrideCgpa" placeholder="e.g. 7.0">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold small">Max Backlogs Allowed</label>
+                <input type="number" class="form-control form-control-sm" id="overrideBacklogs" placeholder="e.g. 0">
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-danger me-auto" id="rejectBtn" onclick="submitDecision('rejected')">
+          <i class="bi bi-x-circle me-1"></i>Reject Company
+        </button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success" id="approveBtn" onclick="submitDecision('approved')">
+          <i class="bi bi-check-circle me-1"></i>Approve & Publish to Eligible Students
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/ui.js"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/tpo/companies.js"></script>
+</body>
+</html>
