@@ -3,3 +3,6 @@ node_modules/
 backend/uploads/
 *.log
 .DS_Store
+package-lock.json
+backend/package-lock.json
+generate_report.py
