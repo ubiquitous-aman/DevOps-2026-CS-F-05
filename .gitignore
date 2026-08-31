@@ -7,3 +7,4 @@ package-lock.json
 backend/package-lock.json
 backend/.env
 .env.local
+!*_Progress_Report_Form-3_*.pdf
