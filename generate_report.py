@@ -20,69 +20,105 @@ from reportlab.platypus import (
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
-# -------------------------------------------------------------
-# CONFIGURATION: Institution & Department Details
-# -------------------------------------------------------------
 COLLEGE_NAME = (
     "Swami Keshvanand Institute of Technology, Management & Gramothan, Jaipur"
 )
 DEPARTMENT_NAME = "Department of Computer Science & Engineering"
-# -------------------------------------------------------------
 
 
-def get_repo_info():
-    """Extracts the repository name and current branch."""
+def get_repo_info(repo_dir=None):
     repo_name = "Project-Repository"
-    branch_name = "main"
+    branch_name = os.environ.get("REPORT_BRANCH_NAME")
+    cmd_prefix = ["git", "-C", repo_dir] if repo_dir else ["git"]
 
     try:
         root_path = subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"], encoding="utf-8"
+            cmd_prefix + ["rev-parse", "--show-toplevel"], encoding="utf-8"
         ).strip()
         repo_name = os.path.basename(root_path)
     except Exception:
         try:
             remote_url = subprocess.check_output(
-                ["git", "config", "--get", "remote.origin.url"], encoding="utf-8"
+                cmd_prefix + ["config", "--get", "remote.origin.url"], encoding="utf-8"
             ).strip()
             repo_name = remote_url.rstrip("/").split("/")[-1].replace(".git", "")
         except Exception:
             repo_name = os.path.basename(os.getcwd())
 
-    try:
-        branch_name = subprocess.check_output(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"], encoding="utf-8"
-        ).strip()
-    except Exception:
-        pass
+    if not branch_name:
+        try:
+            branch_name = subprocess.check_output(
+                cmd_prefix + ["rev-parse", "--abbrev-ref", "HEAD"], encoding="utf-8"
+            ).strip()
+        except Exception:
+            branch_name = "main"
 
     return repo_name, branch_name
 
 
-def get_git_metrics(interval="weekly"):
-    """
-    Parses Git commit logs and aggregates metrics.
-    Supported intervals: 'weekly', 'monthly', 'final'
-    """
-    today = datetime.date.today()
-    git_args = [
-        "git",
-        "log",
-        "--no-merges",
-        "--pretty=format:COMMIT|||%h|||%an|||%ad|||%s",
-        "--date=short",
-        "--numstat",
-    ]
+THREE_STUDENTS = ["Jenkins", "utkarsh_kumar", "utkarsh_gupta"]
+
+
+def map_author_to_student(author, msg=""):
+    a = author.lower()
+    m = msg.lower() if msg else ""
+    if "[jenkins-feedback]" in m or "jenkins" in a or "jenkins" in m:
+        return "Jenkins"
+    elif "aman" in a or "kumar" in a:
+        return "utkarsh_kumar"
+    elif "gupta" in a or "utkarsh" in a:
+        return "utkarsh_gupta"
+    else:
+        return "utkarsh_kumar"
+
+
+def get_git_metrics(interval="weekly", target_date=None, repo_dir=None):
+    if target_date is None:
+        target_date = datetime.date.today()
+    elif isinstance(target_date, str):
+        target_date = datetime.datetime.strptime(target_date, "%Y-%m-%d").date()
+
+    cmd_prefix = ["git", "-C", repo_dir] if repo_dir else ["git"]
 
     if interval == "weekly":
-        since_date = (today - datetime.timedelta(days=7)).strftime("%Y-%m-%d")
-        git_args.append(f"--since={since_date}")
-        scope_title = f"Last 7 Days (Since {since_date})"
+        start_date = target_date - datetime.timedelta(days=7)
+        start_str = start_date.strftime("%Y-%m-%d")
+        end_str = target_date.strftime("%Y-%m-%d")
+        git_args = cmd_prefix + [
+            "log",
+            "--all",
+            "--no-merges",
+            f"--since-as-filter={start_str} 00:00:00",
+            f"--until={end_str} 23:59:59",
+            "--pretty=format:COMMIT|||%h|||%an|||%ad|||%s",
+            "--date=short",
+            "--numstat",
+        ]
+        scope_title = f"({start_str} to {end_str})"
     elif interval == "monthly":
-        since_date = (today - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
-        git_args.append(f"--since={since_date}")
-        scope_title = f"Last 30 Days (Since {since_date})"
+        start_date = target_date.replace(day=1)
+        start_str = start_date.strftime("%Y-%m-%d")
+        end_str = target_date.strftime("%Y-%m-%d")
+        git_args = cmd_prefix + [
+            "log",
+            "--all",
+            "--no-merges",
+            f"--since-as-filter={start_str} 00:00:00",
+            f"--until={end_str} 23:59:59",
+            "--pretty=format:COMMIT|||%h|||%an|||%ad|||%s",
+            "--date=short",
+            "--numstat",
+        ]
+        scope_title = f"({start_str} to {end_str})"
     else:
+        git_args = cmd_prefix + [
+            "log",
+            "--all",
+            "--no-merges",
+            "--pretty=format:COMMIT|||%h|||%an|||%ad|||%s",
+            "--date=short",
+            "--numstat",
+        ]
         scope_title = "Complete Project Lifecycle (All Commits)"
 
     try:
@@ -95,9 +131,10 @@ def get_git_metrics(interval="weekly"):
         )
         return None, None, None, scope_title
 
-    students = defaultdict(
-        lambda: {"commits": 0, "added": 0, "deleted": 0, "active_days": set()}
-    )
+    students = {
+        name: {"commits": 0, "added": 0, "deleted": 0, "active_days": set()}
+        for name in THREE_STUDENTS
+    }
     timeline_activity = defaultdict(lambda: defaultdict(int))
     student_logs = defaultdict(list)
 
@@ -115,16 +152,15 @@ def get_git_metrics(interval="weekly"):
                 sha = parts[1].strip()
                 author = parts[2].strip()
                 date_str = parts[3].strip()
-                msg = parts[4].strip()
+                msg = "|||".join(parts[4:]).strip()
             else:
                 continue
 
-            # Exclude bot commits from metric calculations
-            if "bot" in author.lower() or "github-actions" in author.lower():
+            if "archive form-3" in msg.lower() or "github-actions" in author.lower():
                 current_author = None
                 continue
 
-            current_author = author
+            current_author = map_author_to_student(author, msg)
             current_date_str = date_str
 
             students[current_author]["commits"] += 1
@@ -153,13 +189,14 @@ def get_git_metrics(interval="weekly"):
 
 
 def create_charts(students, timeline_activity, interval):
-    """Generates workload distribution and timeline comparison charts."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 3.8))
-    authors = list(students.keys())
+    authors = [s for s in THREE_STUDENTS if s in students]
     periods = sorted(timeline_activity.keys())
 
-    # 1. Timeline Chart
-    if periods and authors:
+    has_activity = periods and any(
+        timeline_activity[p].get(a, 0) > 0 for p in periods for a in authors
+    )
+    if has_activity:
         for author in authors:
             counts = [timeline_activity[p].get(author, 0) for p in periods]
             ax1.plot(periods, counts, marker="o", linewidth=2, label=author)
@@ -175,10 +212,10 @@ def create_charts(students, timeline_activity, interval):
             0.5, 0.5, "No commits found in this interval", ha="center", va="center"
         )
 
-    # 2. Net LOC Chart
-    if authors:
+    total_loc = sum(students[a]["added"] + students[a]["deleted"] for a in authors)
+    if authors and total_loc > 0:
         net_loc = [students[a]["added"] - students[a]["deleted"] for a in authors]
-        colors_list = ["#4E79A7", "#F28E2B", "#E15759", "#76B7B2", "#59A14F"]
+        colors_list = ["#4E79A7", "#F28E2B", "#E15759"]
         ax2.bar(authors, net_loc, color=colors_list[: len(authors)], width=0.45)
         ax2.set_title("Net Lines of Code Written", fontsize=10, fontweight="bold")
         ax2.set_ylabel("LOC (Added - Deleted)")
@@ -194,14 +231,24 @@ def create_charts(students, timeline_activity, interval):
     return Image(img_buffer, width=500, height=170)
 
 
-def generate_pdf(interval="weekly"):
-    repo_name, branch_name = get_repo_info()
-    students, timeline_activity, student_logs, scope_title = get_git_metrics(interval)
+def generate_pdf(
+    interval="weekly", target_date_str=None, output_dir=None, repo_dir=None
+):
+    if target_date_str:
+        target_date = datetime.datetime.strptime(target_date_str, "%Y-%m-%d").date()
+    else:
+        target_date = datetime.date.today()
+
+    repo_name, branch_name = get_repo_info(repo_dir)
+    students, timeline_activity, student_logs, scope_title = get_git_metrics(
+        interval, target_date, repo_dir
+    )
 
     if students is None:
         return
 
-    date_stamp = datetime.date.today().strftime("%Y-%m-%d")
+    date_stamp = target_date.strftime("%Y-%m-%d")
+    generated_on = target_date.strftime("%B %d, %Y")
 
     if interval == "weekly":
         report_title = "Weekly Progress Report"
@@ -213,15 +260,20 @@ def generate_pdf(interval="weekly"):
         report_title = "Final Project Evaluation Report"
         doc_name = f"{repo_name}_Final_Report_{date_stamp}.pdf"
 
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        pdf_path = os.path.join(output_dir, doc_name)
+    else:
+        pdf_path = doc_name
+
     doc = SimpleDocTemplate(
-        doc_name,
+        pdf_path,
         pagesize=letter,
         rightMargin=36,
         leftMargin=36,
         topMargin=30,
         bottomMargin=30,
     )
-
     styles = getSampleStyleSheet()
 
     college_style = ParagraphStyle(
@@ -301,14 +353,11 @@ def generate_pdf(interval="weekly"):
     )
 
     story = []
-
-    # 1. Header
     story.append(Paragraph(f"<b>{html.escape(COLLEGE_NAME)}</b>", college_style))
     story.append(Paragraph(f"<b>{html.escape(DEPARTMENT_NAME)}</b>", dept_style))
     story.append(Paragraph(f"<u><b>{report_title}</b></u>", title_style))
     story.append(Spacer(1, 3))
 
-    # 2. Metadata
     story.append(
         Paragraph(
             f"<b>Project Repository:</b> <font color='#2563EB'><b>{html.escape(repo_name)}</b></font> &nbsp;|&nbsp; <b>Branch:</b> <code>{html.escape(branch_name)}</code>",
@@ -317,12 +366,11 @@ def generate_pdf(interval="weekly"):
     )
     story.append(
         Paragraph(
-            f"<b>Evaluation Window:</b> {scope_title} &nbsp;|&nbsp; <b>Generated On:</b> {datetime.date.today().strftime('%B %d, %Y')}",
+            f"<b>Evaluation Window:</b> {scope_title} &nbsp;|&nbsp; <b>Generated On:</b> {generated_on}",
             meta_style,
         )
     )
 
-    # 3. Individual Summary Table
     story.append(Paragraph("1. Individual Contribution Breakdown", section_style))
     total_commits = sum(data["commits"] for data in students.values())
     table_data = [
@@ -387,13 +435,11 @@ def generate_pdf(interval="weekly"):
     story.append(table)
     story.append(Spacer(1, 6))
 
-    # 4. Visual Charts
     story.append(Paragraph("2. Visual Trends & Volume", section_style))
     chart_image = create_charts(students, timeline_activity, interval)
     story.append(chart_image)
     story.append(Spacer(1, 6))
 
-    # 5. Detailed Commit Logs per Student
     story.append(
         Paragraph(f"3. Detailed Commit Logs ({interval.capitalize()})", section_style)
     )
@@ -412,7 +458,6 @@ def generate_pdf(interval="weekly"):
                     sub_section_style,
                 )
             )
-
             log_table_data = [["Date", "Hash", "Commit Message"]]
             for date_val, sha_val, msg_val in logs:
                 safe_msg = html.escape(msg_val) if msg_val else "(No commit message)"
@@ -425,24 +470,26 @@ def generate_pdf(interval="weekly"):
                 )
 
             log_table = Table(log_table_data, colWidths=[70, 60, 410])
-            t_style = [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#475569")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 7.5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
-                ("TOPPADDING", (0, 0), (-1, -1), 2.5),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
-                (
-                    "ROWBACKGROUNDS",
-                    (0, 1),
-                    (-1, -1),
-                    [colors.white, colors.HexColor("#F8FAFC")],
-                ),
-            ]
-
-            log_table.setStyle(TableStyle(t_style))
+            log_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#475569")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("FONTSIZE", (0, 0), (-1, -1), 7.5),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
+                        ("TOPPADDING", (0, 0), (-1, -1), 2.5),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+                        (
+                            "ROWBACKGROUNDS",
+                            (0, 1),
+                            (-1, -1),
+                            [colors.white, colors.HexColor("#F8FAFC")],
+                        ),
+                    ]
+                )
+            )
             student_section.append(log_table)
             student_section.append(Spacer(1, 5))
             story.append(KeepTogether(student_section))
@@ -454,4 +501,19 @@ def generate_pdf(interval="weekly"):
 
 if __name__ == "__main__":
     chosen_interval = sys.argv[1].lower() if len(sys.argv) > 1 else "weekly"
-    generate_pdf(chosen_interval)
+    target_date = sys.argv[2] if len(sys.argv) > 2 else None
+    out_dir = sys.argv[3] if len(sys.argv) > 3 else None
+    repo_path = sys.argv[4] if len(sys.argv) > 4 else None
+
+    if not repo_path:
+        for candidate in [".", "college-placement-portal"]:
+            if os.path.exists(os.path.join(candidate, ".git")):
+                repo_path = candidate
+                break
+
+    generate_pdf(
+        chosen_interval,
+        target_date_str=target_date,
+        output_dir=out_dir,
+        repo_dir=repo_path,
+    )
