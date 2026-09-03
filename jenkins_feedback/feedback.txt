@@ -1602,3 +1602,71 @@ Admin Portal > renders user provisioning console and role management table : PAS
 Public Portal > renders responsive institutional landing page with brand hero - Must link to login page : FAIL
 TPO Portal > renders placement statistics charts and package analytics report - File must exist: tpo/stats.html : FAIL
 ========================================
+========================================
+College Placement Portal - Jenkins Test Feedback
+========================================
+
+Build Number : 23
+Job Name     : Placement_Portal_CI
+Branch       : utkarsh_kumar
+Commit       : ae896e766a3cd98a3cf5eace8d4b4ada1ef63f7b
+Date         : 2026-09-16 22:30:00
+
+TEST SUMMARY
+----------------------------------------
+Total Tests  : 1
+Passed       : 0
+Failed       : 2
+Skipped      : 0
+Errors       : 0
+Overall      : FAIL
+
+TEST CASE RESULTS
+----------------------------------------
+College Placement Management Portal - Backend API "before all" hook in "College Placement Management Portal - Backend API" (Cannot find module '../utils/ics') : FAIL
+========================================
+
+========================================
+College Placement Portal - Jenkins Test Feedback
+========================================
+
+Build Number : 23
+Job Name     : Placement_Portal_CI
+Branch       : utkarsh_gupta
+Commit       : 2d5303d76d327f6a84d1310f1b04c2ba2084912c
+Date         : 2026-09-03 11:36:12
+
+TEST SUMMARY
+----------------------------------------
+Total Tests  : 22
+Passed       : 18
+Failed       : 4
+Skipped      : 0
+Errors       : 0
+Overall      : FAIL
+
+TEST CASE RESULTS
+----------------------------------------
+Authentication Pages > renders the Login page with all required headings, inputs, demo buttons, and navigation links : PASS
+Authentication Pages > renders Step-1 Student Registration form with required academic inputs : PASS
+Authentication Pages > renders Step-2 Email OTP Verification view with 6-digit code entry : PASS
+Authentication Pages > renders Step-3 Set Password with live strength checklist rules : PASS
+Authentication Pages > renders 3-Step Forgot Password Wizard with email input and OTP state : PASS
+Authentication Pages > renders Company Self-Registration Portal with placement requirement fields : PASS
+Client Architecture > layout engine provides responsive shell, navbar, and sidebar : PASS
+Client Architecture > API wrapper handles JWT authentication headers and error traps : PASS
+Client Architecture > Auth helper manages session tokens and role guards in localStorage : PASS
+TPO Portal > renders control dashboard with metric counter cards : PASS
+TPO Portal > renders placement drive creation modal with eligibility criteria and rounds : PASS
+TPO Portal > renders company verification and review table : PASS
+Student Portal > renders overview dashboard with placement alerts and drives feed : PASS
+Student Portal > renders eligible placement drives feed with real-time application modal : PASS
+Student Portal > renders application history timeline and round stages container : PASS
+TPO Portal > renders applicant management console with drive selector and round action modals : PASS
+Student Portal > renders live notification feed and unread counter badges - Must contain notifications listing container : FAIL
+Company Portal > renders recruitment dashboard and candidate evaluation views : PASS
+Admin Portal > renders system audit trail logs table with action filters - Must render audit trail logs table : FAIL
+Admin Portal > renders user provisioning console and role management table : PASS
+Public Portal > renders responsive institutional landing page with brand hero - Must link to login page : FAIL
+TPO Portal > renders placement statistics charts and package analytics report - File must exist: tpo/stats.html : FAIL
+========================================
