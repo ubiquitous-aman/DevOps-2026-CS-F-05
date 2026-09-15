@@ -16,23 +16,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     UI.showAlert('alertBox', err.message);
   }
 
+  const schema = {
+    companyName: V.text({ label: 'Company name', required: true, min: 2, max: 100 }),
+    industry: V.text({ label: 'Industry', max: 60 }),
+    website: V.url({ label: 'Website' }),
+    description: V.text({ label: 'Description', max: 1000 }),
+    hrName: V.name({ label: 'HR contact name', required: false }),
+    hrPhone: V.phone({ label: 'HR phone' }),
+    hrEmail: V.email({ label: 'HR email', required: false }),
+  };
+  Validate.live(schema);
+
   document.getElementById('profileForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    UI.clearAlert('alertBox');
+    const { ok, values: v } = Validate.run(schema);
+    if (!ok) return;
     const payload = {
-      companyName: document.getElementById('companyName').value.trim(),
-      industry: document.getElementById('industry').value.trim(),
-      website: document.getElementById('website').value.trim(),
-      description: document.getElementById('description').value.trim(),
-      hrContact: {
-        name: document.getElementById('hrName').value.trim(),
-        phone: document.getElementById('hrPhone').value.trim(),
-        email: document.getElementById('hrEmail').value.trim(),
-      },
+      companyName: v.companyName, industry: v.industry, website: v.website, description: v.description,
+      hrContact: { name: v.hrName || undefined, phone: v.hrPhone || undefined, email: v.hrEmail || undefined },
     };
     try {
       await Api.put('/company/profile', payload);
       UI.showAlert('alertBox', 'Profile updated successfully.', 'success');
     } catch (err) {
+      Validate.showServerErrors(err.errors, { 'hrContact.name': 'hrName', 'hrContact.phone': 'hrPhone', 'hrContact.email': 'hrEmail' });
       UI.showAlert('alertBox', err.message);
     }
   });
