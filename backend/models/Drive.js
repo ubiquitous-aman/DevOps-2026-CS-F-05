@@ -13,6 +13,7 @@ const roundSchema = new mongoose.Schema(
     },
     order: { type: Number, required: true }, // sequence: 1,2,3...
     date: { type: Date },
+    endDate: { type: Date },
     venue: { type: String },
     description: { type: String },
   },
@@ -29,6 +30,9 @@ const driveSchema = new mongoose.Schema(
     jobType: { type: String, enum: ['Full-Time', 'Internship', 'Internship + PPO'], default: 'Full-Time' },
     packageLPA: { type: Number, required: true },
     location: { type: String },
+    openings: { type: Number, min: 1 },
+    requiredDocuments: [{ type: String }],
+    driveDate: { type: Date }, // on-campus drive date/time — set by the T&P cell only
 
     // Eligibility criteria — set by TPO Cell
     eligibility: {
@@ -59,6 +63,9 @@ const driveSchema = new mongoose.Schema(
 
     // College & TPO added institutional requirements (e.g., NPTEL, MOOC, attendance)
     collegeRequirements: { type: String, trim: true },
+
+    // Why T&P rejected / cancelled the drive (shown to the company)
+    decisionReason: { type: String, trim: true },
   },
   { timestamps: true }
 );
