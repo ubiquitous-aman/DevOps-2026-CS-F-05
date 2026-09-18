@@ -41,7 +41,8 @@ async function loadCompanies() {
         </td>
         <td>${reqSummary}</td>
         <td><span class="${UI.badgeClass(c.approvalStatus)}">${c.approvalStatus}</span></td>
-        <td>
+        <td class="text-nowrap">
+          <button class="btn btn-sm btn-outline-secondary me-1" title="Send a message to this company" onclick="messageCompany('${c._id}', '${UI.escapeHtml(c.companyName).replace(/'/g, '&#39;')}')"><i class="bi bi-chat-dots"></i></button>
           ${
             c.approvalStatus === 'pending'
               ? `<button class="btn btn-sm btn-primary-portal" onclick="openReviewModal('${c._id}')">
@@ -87,9 +88,9 @@ function openReviewModal(id) {
     ? req.eligibility.branches.join(', ')
     : 'All Eligible Branches';
   document.getElementById('revBatch').textContent = req.eligibility?.batch || '2026';
-  document.getElementById('revMinCgpa').textContent = req.eligibility?.minCgpa != null ? `${req.eligibility.minCgpa} CGPA` : '0';
-  document.getElementById('revMaxBacklogs').textContent = req.eligibility?.maxBacklogs != null ? req.eligibility.maxBacklogs : '0';
-  document.getElementById('revMinMarks').textContent = `10th: ${req.eligibility?.min10th || 0}%, 12th: ${req.eligibility?.min12th || 0}%`;
+  document.getElementById('revMinCgpa').textContent = req.eligibility?.minCgpa ? `${req.eligibility.minCgpa} CGPA` : 'Not specified by company';
+  document.getElementById('revMaxBacklogs').textContent = req.eligibility?.maxBacklogs != null && req.eligibility?.minCgpa ? req.eligibility.maxBacklogs : 'Not specified by company';
+  document.getElementById('revMinMarks').textContent = (req.eligibility?.min10th || req.eligibility?.min12th) ? `10th: ${req.eligibility.min10th || 0}%, 12th/Diploma: ${req.eligibility.min12th || 0}%` : 'Not specified by company';
 
   // Rounds
   const rounds = req.rounds || [];
@@ -107,6 +108,9 @@ function openReviewModal(id) {
   document.getElementById('overrideCgpa').value = '';
   document.getElementById('overrideBacklogs').value = '';
 
+  document.getElementById('rejectReasonCard').classList.add('d-none');
+  document.getElementById('rejectReason').value = '';
+  Validate.clear(document.getElementById('reviewModal'));
   const isApproved = c.approvalStatus === 'approved';
   document.getElementById('approveBtn').style.display = isApproved ? 'none' : 'inline-block';
   document.getElementById('rejectBtn').style.display = isApproved ? 'none' : 'inline-block';
@@ -114,37 +118,76 @@ function openReviewModal(id) {
   reviewModal.show();
 }
 
+const overrideSchema = {
+  collegeRequirements: V.text({ label: 'College requirements', max: 1000 }),
+  overrideBranches: (v) => {
+    const bad = Validate.list(v).find((b) => !BRANCHES.includes(b));
+    return bad ? `'${bad}' is not a valid branch (use: ${BRANCHES.join(', ')})` : '';
+  },
+  overrideCgpa: V.number({ label: 'Min CGPA', min: 0, max: 10, decimals: 2 }),
+  overrideBacklogs: V.int({ label: 'Max backlogs', min: 0, max: 50 }),
+};
+
+/** first click on "Reject" reveals the reason box; second click submits */
+function startReject() {
+  const card = document.getElementById('rejectReasonCard');
+  if (card.classList.contains('d-none')) {
+    card.classList.remove('d-none');
+    document.getElementById('rejectReason').focus();
+    return;
+  }
+  submitDecision('rejected');
+}
+
 async function submitDecision(decision) {
   if (!selectedCompanyId) return;
   UI.clearAlert('reviewAlert');
 
-  const payload = {
-    decision,
-    collegeRequirements: document.getElementById('collegeRequirements').value.trim(),
-  };
-
-  const branchOverride = document.getElementById('overrideBranches').value.trim();
-  const cgpaOverride = document.getElementById('overrideCgpa').value;
-  const backlogsOverride = document.getElementById('overrideBacklogs').value;
-
-  const eligibility = {};
-  if (branchOverride) eligibility.branches = branchOverride.split(',').map((b) => b.trim()).filter(Boolean);
-  if (cgpaOverride) eligibility.minCgpa = parseFloat(cgpaOverride);
-  if (backlogsOverride) eligibility.maxBacklogs = parseInt(backlogsOverride, 10);
-
-  if (Object.keys(eligibility).length > 0) {
-    payload.eligibility = eligibility;
+  const payload = { decision };
+  if (decision === 'rejected') {
+    const r = Validate.run({ rejectReason: V.text({ label: 'Reason', required: true, min: 5, max: 500 }) });
+    if (!r.ok) return;
+    payload.reason = r.values.rejectReason;
+  } else {
+    const { ok } = Validate.run(overrideSchema);
+    if (!ok) return;
+    payload.collegeRequirements = document.getElementById('collegeRequirements').value.trim();
+    const eligibility = {};
+    const branchOverride = document.getElementById('overrideBranches').value.trim();
+    const cgpaOverride = document.getElementById('overrideCgpa').value;
+    const backlogsOverride = document.getElementById('overrideBacklogs').value;
+    if (branchOverride) eligibility.branches = Validate.list(branchOverride);
+    if (cgpaOverride !== '') eligibility.minCgpa = parseFloat(cgpaOverride);
+    if (backlogsOverride !== '') eligibility.maxBacklogs = parseInt(backlogsOverride, 10);
+    if (Object.keys(eligibility).length > 0) payload.eligibility = eligibility;
   }
 
+  const btn = document.getElementById(decision === 'approved' ? 'approveBtn' : 'rejectBtn');
+  await withButton(btn, '<span class="spinner-border spinner-border-sm me-1"></span>Saving...', async () => {
+    try {
+      const res = await Api.put(`/tpo/companies/${selectedCompanyId}/approve`, payload);
+      reviewModal.hide();
+      const msg = decision === 'approved'
+        ? `Company approved!${res.drive ? ` Drive published and ${res.eligibleStudentsNotified || 0} eligible students notified.` : ''}`
+        : 'Company application rejected.';
+      UI.showAlert('alertBox', msg, decision === 'approved' ? 'success' : 'warning');
+      await loadCompanies();
+    } catch (err) {
+      UI.showAlert('reviewAlert', err.message);
+    }
+  });
+}
+
+/** T&P -> company message (arrives in the company's Notifications inbox; companies reply with "Message T&P"). */
+async function messageCompany(companyId, name) {
+  const subject = prompt(`Message to ${name}\n\nSubject:`);
+  if (subject === null) return;
+  const message = prompt('Message:');
+  if (message === null) return;
   try {
-    const res = await Api.put(`/tpo/companies/${selectedCompanyId}/approve`, payload);
-    reviewModal.hide();
-    const msg = decision === 'approved'
-      ? `Company approved! Placement drive published and ${res.eligibleStudentsNotified || 0} eligible students notified on their dashboards.`
-      : 'Company application rejected.';
-    UI.showAlert('alertBox', msg, decision === 'approved' ? 'success' : 'warning');
-    await loadCompanies();
+    const res = await Api.post('/tpo/message-company', { companyId, subject: subject.trim(), message: message.trim() });
+    UI.showAlert('alertBox', res.message, 'success');
   } catch (err) {
-    UI.showAlert('reviewAlert', err.message);
+    UI.showAlert('alertBox', err.errors ? Object.values(err.errors)[0] : err.message);
   }
 }
