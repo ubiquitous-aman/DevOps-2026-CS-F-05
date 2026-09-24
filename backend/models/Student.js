@@ -23,6 +23,13 @@ const studentSchema = new mongoose.Schema(
       uploadedAt: Date,
     },
 
+    // Optional profile / portfolio links (validated as http(s) URLs by the API)
+    links: {
+      github: { type: String },
+      linkedin: { type: String },
+      portfolio: { type: String },
+    },
+
     skills: [{ type: String }],
 
     isPlaced: { type: Boolean, default: false },
