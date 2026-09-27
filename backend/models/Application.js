@@ -35,6 +35,14 @@ const applicationSchema = new mongoose.Schema(
     roundResults: [roundResultSchema],
 
     appliedAt: { type: Date, default: Date.now },
+
+    // Application form
+    coverNote: { type: String, default: '' },
+    documentLinks: [{ type: String }],
+
+    // Set by T&P on final selection
+    offeredPackageLPA: { type: Number },
+    joiningDate: { type: Date },
   },
   { timestamps: true }
 );
