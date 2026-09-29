@@ -23,7 +23,7 @@ async function loadDrives() {
     approvedDrives = drives;
     const select = document.getElementById('driveSelect');
     if (drives.length === 0) {
-      select.innerHTML = '<option>No approved drives yet</option>';
+      select.innerHTML = '<option value="">No approved drives yet</option>';
       document.getElementById('applicantsList').innerHTML = UI.empty('You have no approved/published drives yet.');
       return;
     }
@@ -35,8 +35,11 @@ async function loadDrives() {
 }
 
 async function loadApplicants(driveId) {
-  if (!driveId) return;
   const list = document.getElementById('applicantsList');
+  if (!driveId) {
+    list.innerHTML = UI.empty('You have no approved/published drives yet.');
+    return;
+  }
   list.innerHTML = UI.spinner();
   try {
     if (currentView === 'all') {
@@ -56,7 +59,11 @@ function renderTable(applications, list, selectedOnly) {
     list.innerHTML = UI.empty(selectedOnly ? 'No candidates finally selected yet.' : 'No applicants yet.');
     return;
   }
+  const driveId = document.getElementById('driveSelect').value;
   list.innerHTML = `
+    <div class="d-flex justify-content-end mb-2">
+      <button class="btn btn-sm btn-outline-success" onclick="downloadFile('/company/drives/${driveId}/export${selectedOnly ? '?selected=1' : ''}', 'candidates.csv')"><i class="bi bi-file-earmark-excel me-1"></i>Export CSV</button>
+    </div>
     <div class="card section-card">
       <div class="card-body">
         <div class="table-responsive">
@@ -71,7 +78,7 @@ function renderTable(applications, list, selectedOnly) {
                 <tr>
                   <td>
                     <div class="fw-semibold">${UI.escapeHtml(student.user.name)}</div>
-                    <div class="text-muted small">${UI.escapeHtml(student.rollNumber)}</div>
+                    <div class="text-muted small">${UI.escapeHtml(student.rollNumber)}${student.resume && student.resume.filePath ? ` · <a href="#" onclick="openResumeFor('${student._id}'); return false;"><i class="bi bi-file-earmark-person"></i> Resume</a>` : ''}</div>
                   </td>
                   <td>${UI.escapeHtml(student.branch)}</td>
                   <td class="small">${currentRound ? UI.escapeHtml(currentRound.roundName) : '—'}</td>
