@@ -15,6 +15,20 @@
   <main class="main-content">
     <h2 id="pageTitle" class="mb-4 fw-bold text-primary-portal">Monitor Administrative Activity</h2>
     <div id="alertBox"></div>
+    <div class="card section-card mb-3">
+      <div class="card-body">
+        <div class="row g-2 align-items-end">
+          <div class="col-sm-4"><label class="form-label small fw-semibold mb-1" for="logAction">Action</label>
+            <select class="form-select form-select-sm" id="logAction"><option value="">All actions</option></select></div>
+          <div class="col-sm-5"><label class="form-label small fw-semibold mb-1" for="logSearch">Search (user or details)</label>
+            <input type="search" class="form-control form-control-sm" id="logSearch" placeholder="e.g. riya@student.edu, Acme"></div>
+          <div class="col-sm-3 d-flex gap-2">
+            <button class="btn btn-sm btn-primary-portal flex-fill" id="logApply"><i class="bi bi-funnel me-1"></i>Filter</button>
+            <button class="btn btn-sm btn-outline-secondary" id="logReset" title="Clear filters"><i class="bi bi-x-lg"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="card section-card">
       <div class="card-body">
         <div class="table-responsive">
@@ -22,6 +36,13 @@
             <thead><tr><th>Time</th><th>Actor</th><th>Role</th><th>Action</th><th>Details</th></tr></thead>
             <tbody id="logsTbody"></tbody>
           </table>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mt-2">
+          <span class="small text-muted" id="logInfo"></span>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-secondary" id="logPrev"><i class="bi bi-chevron-left"></i> Prev</button>
+            <button class="btn btn-outline-secondary" id="logNext">Next <i class="bi bi-chevron-right"></i></button>
+          </div>
         </div>
       </div>
     </div>
@@ -32,6 +53,7 @@
 <script src="../js/api.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/ui.js"></script>
+<script src="../js/validate.js"></script>
 <script src="../js/layout.js"></script>
 <script src="../js/admin/logs.js"></script>
 </body>
