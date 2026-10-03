@@ -3,7 +3,9 @@ node_modules/
 *.log
 .DS_Store
 backend/uploads/
-package-lock.json
-backend/package-lock.json
 backend/.env
 .env.local
+*.txt
+*.docx
+*.pdf
+*.md
