@@ -1,42 +1,39 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const schema = {
+    name: V.name({ label: 'HR contact name' }),
+    companyName: V.text({ label: 'Company name', required: true, min: 2, max: 100 }),
+    email: V.email({ label: 'Work email' }),
+    hrPhone: V.phone({ label: 'HR phone' }),
+    industry: V.text({ label: 'Industry', max: 60 }),
+    website: V.url({ label: 'Website' }),
+    description: V.text({ label: 'Description', max: 1000 }),
+    password: V.password(),
+    confirmPassword: (v) => (isBlank(v) ? 'Please confirm your password' : v !== Validate.val('password') ? 'Passwords do not match' : ''),
+  };
+  Validate.live(schema);
+  Validate.passwordChecklist('password', 'pwRules');
+  Validate.eyeToggle('password');
+
   const form = document.getElementById('regForm');
   const btn = document.getElementById('regBtn');
-  const btnText = document.getElementById('regBtnText');
-  const spinner = document.getElementById('regSpinner');
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     UI.clearAlert('alertBox');
+    const { ok, values } = Validate.run(schema);
+    if (!ok) return;
 
-    if (!form.checkValidity()) {
-      form.classList.add('was-validated');
-      return;
-    }
-
-    const payload = {
-      name: document.getElementById('name').value.trim(),
-      companyName: document.getElementById('companyName').value.trim(),
-      email: document.getElementById('email').value.trim(),
-      hrPhone: document.getElementById('hrPhone').value.trim(),
-      industry: document.getElementById('industry').value.trim(),
-      website: document.getElementById('website').value.trim(),
-      description: document.getElementById('description').value.trim(),
-      password: document.getElementById('password').value,
-    };
-
-    btn.disabled = true;
-    btnText.textContent = 'Creating account...';
-    spinner.classList.remove('d-none');
-
-    try {
-      const data = await Api.post('/auth/register/company', payload);
-      Auth.saveSession(data.token, data.user);
-      window.location.href = '/company/dashboard.html';
-    } catch (err) {
-      UI.showAlert('alertBox', err.message || 'Registration failed');
-      btn.disabled = false;
-      btnText.textContent = 'Create Company Account';
-      spinner.classList.add('d-none');
-    }
+    await withButton(btn, '<span class="spinner-border spinner-border-sm me-2"></span>Creating account...', async () => {
+      try {
+        const payload = { ...values, password: document.getElementById('password').value, confirmPassword: document.getElementById('confirmPassword').value };
+        ['hrPhone', 'industry', 'website', 'description'].forEach((k) => { if (!payload[k]) delete payload[k]; });
+        const data = await Api.post('/auth/register/company', payload);
+        Auth.saveSession(data.token, data.user);
+        window.location.href = '/company/dashboard.html';
+      } catch (err) {
+        Validate.showServerErrors(err.errors);
+        UI.showAlert('alertBox', err.message || 'Registration failed');
+      }
+    });
   });
 });

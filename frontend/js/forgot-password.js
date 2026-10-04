@@ -88,8 +88,12 @@ async function handleSendOtp(e, isResend = false) {
   if (e) e.preventDefault();
   UI.clearAlert('alertBox');
 
-  const email = isResend ? userEmail : document.getElementById('email').value.trim();
-  if (!email) return;
+  let email = userEmail;
+  if (!isResend) {
+    const r = Validate.run({ email: V.email() });
+    if (!r.ok) return;
+    email = r.values.email;
+  }
 
   const btn = document.getElementById('sendOtpBtn');
   const btnText = document.getElementById('sendOtpBtnText');
@@ -118,7 +122,9 @@ async function handleVerifyOtp(e) {
   e.preventDefault();
   UI.clearAlert('alertBox');
 
-  const otp = document.getElementById('otp').value.trim();
+  const r = Validate.run({ otp: V.text({ label: 'Verification code', required: true, pattern: /^\d{6}$/, patternMsg: 'Enter the 6-digit code' }) });
+  if (!r.ok) return;
+  const otp = r.values.otp;
   const btn = document.getElementById('verifyOtpBtn');
   const btnText = document.getElementById('verifyOtpBtnText');
   const spinner = document.getElementById('verifyOtpSpinner');
@@ -146,15 +152,11 @@ async function handleResetPassword(e) {
   const newPassword = document.getElementById('newPassword').value;
   const confirmPassword = document.getElementById('confirmPassword').value;
 
-  if (!checkPasswordRules()) {
-    UI.showAlert('alertBox', 'Password does not meet all complexity requirements.');
-    return;
-  }
-
-  if (newPassword !== confirmPassword) {
-    UI.showAlert('alertBox', 'Passwords do not match.');
-    return;
-  }
+  const r = Validate.run({
+    newPassword: V.password({ label: 'New password' }),
+    confirmPassword: (v) => (isBlank(v) ? 'Please confirm your password' : v !== Validate.val('newPassword') ? 'Passwords do not match' : ''),
+  });
+  if (!r.ok) return;
 
   const btn = document.getElementById('resetBtn');
   const btnText = document.getElementById('resetBtnText');
@@ -164,7 +166,7 @@ async function handleResetPassword(e) {
   spinner.classList.remove('d-none');
 
   try {
-    await Api.post('/auth/reset-password', { resetToken, newPassword });
+    await Api.post('/auth/reset-password', { resetToken, newPassword, confirmPassword });
     goToStep(4);
   } catch (err) {
     UI.showAlert('alertBox', err.message);

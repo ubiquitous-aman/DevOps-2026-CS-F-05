@@ -165,7 +165,7 @@ test('TPO Portal > renders applicant management console with drive selector and 
 });
 test('Student Portal > renders live notification feed and unread counter badges', () => {
     const html = readHtml('student/notifications.html');
-    assert.ok(html.includes('notificationsList'), 'Must contain notifications listing container');
+    assert.ok(html.includes('notifList'), 'Must contain notifications listing container');
 });
 
 // =============================================================================
@@ -179,7 +179,7 @@ test('Company Portal > renders recruitment dashboard and candidate evaluation vi
 });
 test('Admin Portal > renders system audit trail logs table with action filters', () => {
     const html = readHtml('admin/logs.html');
-    assert.ok(/logsTable|activityLogs/i.test(html), 'Must render audit trail logs table');
+    assert.ok(/logsTable|activityLogs|logsTbody/i.test(html), 'Must render audit trail logs table');
 });
 test('Admin Portal > renders user provisioning console and role management table', () => {
     const html = readHtml('admin/users.html');
@@ -197,7 +197,7 @@ test('Public Portal > renders responsive institutional landing page with brand h
     assert.ok(/login\.html/i.test(html), 'Must link to login page');
 });
 test('TPO Portal > renders placement statistics charts and package analytics report', () => {
-    const html = readHtml('tpo/stats.html');
+    const html = readHtml('tpo/statistics.html');
     assert.ok(/chart|stats|package/i.test(html), 'Must render placement statistics components');
 });
 

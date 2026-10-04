@@ -32,23 +32,23 @@
         <form id="regForm" novalidate>
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">Full Name</label>
-              <input type="text" class="form-control" id="name" required>
+              <label class="form-label" for="name">Full Name</label>
+              <input type="text" class="form-control" id="name" maxlength="60" autocomplete="name" required>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Roll Number</label>
-              <input type="text" class="form-control" id="rollNumber" required>
+              <label class="form-label" for="rollNumber">Roll Number</label>
+              <input type="text" class="form-control" id="rollNumber" maxlength="20" placeholder="e.g. 2026CS101" required>
             </div>
-            <div class="col-md-8">
-              <label class="form-label">Email address</label>
-              <input type="email" class="form-control" id="email" required>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">Phone</label>
-              <input type="tel" class="form-control" id="phone">
+            <div class="col-md-7">
+              <label class="form-label" for="email">Email address</label>
+              <input type="email" class="form-control" id="email" autocomplete="email" required>
             </div>
             <div class="col-md-5">
-              <label class="form-label">Branch</label>
+              <label class="form-label" for="phone">Mobile number</label>
+              <input type="tel" class="form-control" id="phone" placeholder="10-digit number" maxlength="15" autocomplete="tel" required>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label" for="branch">Branch</label>
               <select class="form-select" id="branch" required>
                 <option value="">Choose...</option>
                 <option>CSE</option>
@@ -63,13 +63,22 @@
               </select>
             </div>
             <div class="col-md-7">
-              <label class="form-label">Batch (Graduation Year)</label>
-              <input type="number" class="form-control" id="batch" min="2020" max="2035" value="2026" required>
+              <label class="form-label" for="batch">Batch (Graduation Year)</label>
+              <input type="number" class="form-control" id="batch" min="2000" max="2035" value="2026" required>
             </div>
+            <div class="col-md-6">
+              <label class="form-label" for="password">Password</label>
+              <input type="password" class="form-control" id="password" autocomplete="new-password" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="confirmPassword">Confirm password</label>
+              <input type="password" class="form-control" id="confirmPassword" autocomplete="new-password" required>
+            </div>
+            <div class="col-12 -mt-1" id="pwRules"></div>
           </div>
 
           <button type="submit" class="btn btn-primary-portal w-100 py-2 mt-4" id="regBtn">
-            <span id="regBtnText">Send Verification Code</span>
+            <span id="regBtnText">Create Account</span>
             <span id="regSpinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
           </button>
         </form>
@@ -86,6 +95,7 @@
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/ui.js"></script>
+<script src="js/validate.js"></script>
   <script src="js/register-student.js"></script>
 </body>
 
