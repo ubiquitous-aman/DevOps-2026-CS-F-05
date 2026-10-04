@@ -19,6 +19,7 @@ const companySchema = new mongoose.Schema(
       enum: ['pending', 'approved', 'rejected'],
       default: 'pending',
     },
+    rejectionReason: { type: String },
 
     // Initial placement drive requirements submitted by company
     placementRequirement: {

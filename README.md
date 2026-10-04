@@ -26,3 +26,15 @@ A centralized digital platform designed to streamline campus recruitment for Stu
 - Admin governance dashboard with system performance metrics, user provisioning, and audit trail logs.
 - Interactive institutional landing page with placement highlights and portal entrypoints.
 - Comprehensive end-to-end automated testing for backend REST APIs and frontend client architecture.
+---
+## Week 4 Milestone Completed (Validation & Workflow Updates)
+
+**Run**
+```bash
+cd backend
+npm install
+cp .env.example .env        # set JWT_SECRET, MONGO_URI
+npm run seed                # admin@placement.edu / Admin@123 , tpo@placement.edu / Tpo@1234
+npm start                   # http://localhost:5000
+npm run test:all            # needs MongoDB (or TEST_MONGO_URI)
+npm run reset-password -- email "NewStrong@123"   # emergency reset

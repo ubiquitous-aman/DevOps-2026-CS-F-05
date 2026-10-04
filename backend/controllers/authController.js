@@ -6,518 +6,414 @@ const generateToken = require('../utils/generateToken');
 const logActivity = require('../utils/logActivity');
 const sendEmail = require('../utils/email');
 const { generateOTP, hashOTP, compareOTP, getExpiry, MAX_OTP_ATTEMPTS } = require('../utils/otp');
+const { Validator, passwordProblem, validateEligibility, BRANCHES } = require('../utils/validators');
+const { validateDriveInput } = require('../utils/driveRules');
 
-/**
- * Validates password strength:
- * - At least 8 characters
- * - Uppercase letter (A-Z)
- * - Lowercase letter (a-z)
- * - Number (0-9)
- * - Special character (!@#$%^&* etc.)
- */
-const validatePasswordComplexity = (password) => {
-  if (!password || password.length < 8) {
-    return 'Password must be at least 8 characters long';
+const ROLL_RE = /^[A-Za-z0-9][A-Za-z0-9/-]{3,19}$/;
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Shared field rules for the student sign-up forms
+const studentDetails = (v, { phoneRequired }) =>
+  v
+    .name('name', { required: true })
+    .email('email', { required: true })
+    .phone('phone', { required: phoneRequired })
+    .string('rollNumber', {
+      required: true, label: 'Roll number', upper: true, pattern: ROLL_RE,
+      patternMsg: 'Roll number must be 4-20 letters/digits (/ and - allowed)',
+    })
+    .oneOf('branch', BRANCHES, { required: true, label: 'Branch' })
+    .integer('batch', { required: true, label: 'Batch (graduation year)', min: 2000, max: new Date().getFullYear() + 6 });
+
+// =====================================================================
+// STUDENT REGISTRATION
+//  - registerStudent        : simple single-form sign-up (used by the UI)
+//  - initiate/verify/set... : original 3-step email-OTP flow (kept for API compatibility)
+// =====================================================================
+
+// @route POST /api/auth/register/student
+const registerStudent = async (req, res) => {
+  const v = studentDetails(new Validator(req.body), { phoneRequired: true }).password('password', { required: true });
+  const conf = req.body.confirmPassword;
+  if (conf === undefined || conf === '') v._err('confirmPassword', 'Please confirm your password');
+  else if (conf !== req.body.password) v._err('confirmPassword', 'Passwords do not match');
+  if (v.fail(res)) return;
+  const { name, email, phone, rollNumber, branch, batch, password } = v.data;
+
+  if (await User.findOne({ email })) return res.status(409).json({ success: false, message: 'Email already registered', errors: { email: 'Email already registered' } });
+  if (await Student.findOne({ rollNumber })) return res.status(409).json({ success: false, message: 'Roll number already registered', errors: { rollNumber: 'Roll number already registered' } });
+
+  const user = await User.create({ name, email, password, role: 'student', emailVerified: true });
+  let student;
+  try {
+    student = await Student.create({ user: user._id, rollNumber, branch, batch, phone });
+  } catch (err) {
+    await user.deleteOne(); // never leave a user without a profile
+    throw err;
   }
-  if (!/[A-Z]/.test(password)) {
-    return 'Password must contain at least one uppercase letter (A-Z)';
-  }
-  if (!/[a-z]/.test(password)) {
-    return 'Password must contain at least one lowercase letter (a-z)';
-  }
-  if (!/[0-9]/.test(password)) {
-    return 'Password must contain at least one number (0-9)';
-  }
-  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(password)) {
-    return 'Password must contain at least one special character (!@#$%^&* etc.)';
-  }
-  return null;
+  await logActivity(user, 'STUDENT_REGISTERED', `${name} (${rollNumber})`);
+  res.status(201).json({
+    success: true,
+    token: generateToken(user),
+    user: { id: user._id, name: user.name, email: user.email, role: user.role, profileId: student._id },
+  });
 };
 
-// =====================================================================
-// STUDENT REGISTRATION — 3-step OTP flow
-// Step 1: Collect details → store unverified user → send OTP
-// Step 2: Verify OTP → issue short-lived setup token
-// Step 3: Set password → account fully activated → issue JWT
-// =====================================================================
-
-// @desc  Step 1: Accept student details, store an unverified account, send OTP
-// @route POST /api/auth/register/student/initiate
+// @route POST /api/auth/register/student/initiate  (Step 1 of the OTP flow)
 const initiateStudentRegistration = async (req, res) => {
-  try {
-    const { name, email, rollNumber, branch, batch, phone } = req.body;
+  const v = studentDetails(new Validator(req.body), { phoneRequired: false });
+  if (v.fail(res)) return;
+  const { name, email, rollNumber, branch, batch, phone } = v.data;
 
-    if (!name || !email || !rollNumber || !branch || !batch) {
-      return res.status(400).json({ success: false, message: 'Please fill all required fields' });
-    }
-
-    // Check for duplicate email — if a fully verified account exists, reject.
-    // If an unverified account exists (previous incomplete registration), allow
-    // them to restart (overwrite the OTP so they can try again).
-    const existingUser = await User.findOne({ email });
-    if (existingUser && existingUser.emailVerified) {
-      return res.status(400).json({ success: false, message: 'Email already registered' });
-    }
-
-    const rollExists = await Student.findOne({ rollNumber });
-    if (rollExists) {
-      // Could be their own previous unfinished attempt — allow only if the
-      // linked user is unverified and matches this email.
-      const linkedUser = rollExists ? await User.findById(rollExists.user) : null;
-      if (!linkedUser || linkedUser.emailVerified || linkedUser.email !== email) {
-        return res.status(400).json({ success: false, message: 'Roll number already registered' });
-      }
-    }
-
-    const otp = generateOTP();
-    const otpHash = await hashOTP(otp);
-    const otpExpires = getExpiry();
-
-    let user, student;
-
-    if (existingUser) {
-      // Restart incomplete registration — refresh OTP only, keep other fields
-      existingUser.name = name;
-      existingUser.registrationOTPHash = otpHash;
-      existingUser.registrationOTPExpires = otpExpires;
-      existingUser.registrationOTPAttempts = 0;
-      await existingUser.save();
-      user = existingUser;
-
-      // Update student profile fields too (branch/batch may have changed)
-      student = await Student.findOne({ user: user._id });
-      if (student) {
-        student.rollNumber = rollNumber;
-        student.branch = branch;
-        student.batch = batch;
-        student.phone = phone;
-        await student.save();
-      } else {
-        student = await Student.create({ user: user._id, rollNumber, branch, batch, phone });
-      }
-    } else {
-      // Brand-new registration — no password yet (set in Step 3).
-      // The User schema allows this because emailVerified defaults to false,
-      // and password is only required once emailVerified === true.
-      user = await User.create({
-        name,
-        email,
-        role: 'student',
-        emailVerified: false,
-        registrationOTPHash: otpHash,
-        registrationOTPExpires: otpExpires,
-        registrationOTPAttempts: 0,
-      });
-
-      student = await Student.create({ user: user._id, rollNumber, branch, batch, phone });
-    }
-
-    await sendEmail({
-      to: email,
-      subject: 'Your College Placement Portal — Email Verification Code',
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto;">
-          <h2 style="color:#2563eb;">College Placement Portal</h2>
-          <p>Hi ${name},</p>
-          <p>Thanks for registering! Please verify your email address with the code below:</p>
-          <div style="background:#f1f5f9;border-radius:8px;padding:24px;text-align:center;margin:24px 0;">
-            <span style="font-size:2.5rem;font-weight:bold;letter-spacing:10px;color:#1e293b;">${otp}</span>
-          </div>
-          <p style="color:#64748b;font-size:0.9rem;">This code expires in 10 minutes. If you didn't request this, you can safely ignore this email.</p>
-          <hr style="border:none;border-top:1px solid #e2e8f0;">
-          <p style="color:#94a3b8;font-size:0.8rem;">This email was sent by College Placement Portal. Do not reply to this email.</p>
-        </div>`,
-      text: `Your College Placement Portal email verification code is: ${otp}\n\nThis code expires in 10 minutes.`,
-    });
-
-    // In test env, expose OTP so automated tests can verify without a mailbox
-    const response = { success: true, message: 'Verification code sent to your email address.' };
-    if (process.env.NODE_ENV === 'test') response.otpForTesting = otp;
-
-    res.status(200).json(response);
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+  const existingUser = await User.findOne({ email });
+  if (existingUser && existingUser.emailVerified) {
+    return res.status(400).json({ success: false, message: 'Email already registered' });
   }
-};
-
-// @desc  Step 2: Verify the registration OTP, return a short-lived setup token
-// @route POST /api/auth/register/verify-email
-const verifyRegistrationOTP = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-    if (!email || !otp) {
-      return res.status(400).json({ success: false, message: 'Email and verification code are required' });
+  const rollExists = await Student.findOne({ rollNumber });
+  if (rollExists) {
+    const linkedUser = await User.findById(rollExists.user);
+    if (!linkedUser || linkedUser.emailVerified || linkedUser.email !== email) {
+      return res.status(400).json({ success: false, message: 'Roll number already registered' });
     }
-
-    const user = await User.findOne({ email }).select(
-      '+registrationOTPHash +registrationOTPExpires +registrationOTPAttempts'
-    );
-
-    if (!user || !user.registrationOTPHash || user.emailVerified) {
-      return res.status(400).json({ success: false, message: 'Invalid or expired code. Please register again.' });
-    }
-
-    if (user.registrationOTPAttempts >= MAX_OTP_ATTEMPTS) {
-      return res.status(429).json({ success: false, message: 'Too many attempts. Please register again to get a new code.' });
-    }
-
-    if (new Date() > new Date(user.registrationOTPExpires)) {
-      return res.status(400).json({ success: false, message: 'This code has expired. Please register again to get a new code.' });
-    }
-
-    const valid = await compareOTP(otp, user.registrationOTPHash);
-    if (!valid) {
-      user.registrationOTPAttempts += 1;
-      await user.save();
-      const remaining = MAX_OTP_ATTEMPTS - user.registrationOTPAttempts;
-      return res.status(400).json({
-        success: false,
-        message: `Incorrect code. ${remaining > 0 ? `${remaining} attempt(s) remaining.` : 'Please register again.'}`,
-      });
-    }
-
-    // OTP correct — mark email as verified, clear OTP fields
-    user.emailVerified = true;
-    user.registrationOTPHash = undefined;
-    user.registrationOTPExpires = undefined;
-    user.registrationOTPAttempts = 0;
-    await user.save();
-
-    // Issue a short-lived, single-purpose token for the password-setup step
-    const setupToken = jwt.sign(
-      { id: user._id, purpose: 'email_setup' },
-      process.env.JWT_SECRET,
-      { expiresIn: '15m' }
-    );
-
-    await logActivity(user, 'EMAIL_VERIFIED', email);
-
-    res.json({ success: true, message: 'Email verified successfully.', setupToken });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
   }
-};
 
-// @desc  Step 3: Set password using setup token — fully activates the account
-// @route POST /api/auth/register/set-password
-const setRegistrationPassword = async (req, res) => {
-  try {
-    const { setupToken, password } = req.body;
-    if (!setupToken || !password) {
-      return res.status(400).json({ success: false, message: 'Setup token and password are required' });
-    }
-    const complexityErr = validatePasswordComplexity(password);
-    if (complexityErr) {
-      return res.status(400).json({ success: false, message: complexityErr });
-    }
+  const otp = generateOTP();
+  const otpHash = await hashOTP(otp);
+  const otpExpires = getExpiry();
+  let user;
 
-    let decoded;
-    try {
-      decoded = jwt.verify(setupToken, process.env.JWT_SECRET);
-    } catch {
-      return res.status(400).json({ success: false, message: 'Session expired. Please register again.' });
-    }
-    if (decoded.purpose !== 'email_setup') {
-      return res.status(400).json({ success: false, message: 'Invalid setup token' });
-    }
-
-    const user = await User.findById(decoded.id);
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    if (!user.emailVerified) {
-      return res.status(400).json({ success: false, message: 'Email not verified. Please complete verification first.' });
-    }
-
-    // Set password — the pre-save hook in User.js will hash it
-    user.password = password;
-    await user.save();
-
+  if (existingUser) {
+    existingUser.name = name;
+    existingUser.registrationOTPHash = otpHash;
+    existingUser.registrationOTPExpires = otpExpires;
+    existingUser.registrationOTPAttempts = 0;
+    await existingUser.save();
+    user = existingUser;
     const student = await Student.findOne({ user: user._id });
-
-    await logActivity(user, 'STUDENT_REGISTERED', `${user.name} (${student?.rollNumber || ''})`);
-
-    res.status(201).json({
-      success: true,
-      token: generateToken(user),
-      user: { id: user._id, name: user.name, email: user.email, role: user.role, profileId: student?._id },
+    if (student) {
+      Object.assign(student, { rollNumber, branch, batch, phone });
+      await student.save();
+    } else {
+      await Student.create({ user: user._id, rollNumber, branch, batch, phone });
+    }
+  } else {
+    user = await User.create({
+      name, email, role: 'student', emailVerified: false,
+      registrationOTPHash: otpHash, registrationOTPExpires: otpExpires, registrationOTPAttempts: 0,
     });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    await Student.create({ user: user._id, rollNumber, branch, batch, phone });
   }
+
+  await sendEmail({
+    to: email,
+    subject: 'Your College Placement Portal — Email Verification Code',
+    html: `<div style="font-family:sans-serif;max-width:480px;margin:auto;"><h2 style="color:#2563eb;">College Placement Portal</h2><p>Hi ${name},</p><p>Your email verification code is:</p><div style="background:#f1f5f9;border-radius:8px;padding:24px;text-align:center;margin:24px 0;"><span style="font-size:2.5rem;font-weight:bold;letter-spacing:10px;color:#1e293b;">${otp}</span></div><p style="color:#64748b;font-size:0.9rem;">This code expires in 10 minutes.</p></div>`,
+    text: `Your College Placement Portal email verification code is: ${otp}\n\nThis code expires in 10 minutes.`,
+  });
+
+  const response = { success: true, message: 'Verification code sent to your email address.' };
+  if (process.env.NODE_ENV === 'test') response.otpForTesting = otp;
+  res.status(200).json(response);
 };
 
-// @desc  Register a new COMPANY
+// @route POST /api/auth/register/verify-email  (Step 2)
+const verifyRegistrationOTP = async (req, res) => {
+  const v = new Validator(req.body)
+    .email('email', { required: true })
+    .string('otp', { required: true, label: 'Verification code', pattern: /^\d{6}$/, patternMsg: 'Verification code must be 6 digits' });
+  if (v.fail(res)) return;
+  const { email, otp } = v.data;
+
+  const user = await User.findOne({ email }).select('+registrationOTPHash +registrationOTPExpires +registrationOTPAttempts');
+  if (!user || !user.registrationOTPHash || user.emailVerified) {
+    return res.status(400).json({ success: false, message: 'Invalid or expired code. Please register again.' });
+  }
+  if (user.registrationOTPAttempts >= MAX_OTP_ATTEMPTS) {
+    return res.status(429).json({ success: false, message: 'Too many attempts. Please register again to get a new code.' });
+  }
+  if (new Date() > new Date(user.registrationOTPExpires)) {
+    return res.status(400).json({ success: false, message: 'This code has expired. Please register again to get a new code.' });
+  }
+  if (!(await compareOTP(otp, user.registrationOTPHash))) {
+    user.registrationOTPAttempts += 1;
+    await user.save();
+    const remaining = MAX_OTP_ATTEMPTS - user.registrationOTPAttempts;
+    return res.status(400).json({ success: false, message: `Incorrect code. ${remaining > 0 ? `${remaining} attempt(s) remaining.` : 'Please register again.'}` });
+  }
+
+  user.emailVerified = true;
+  user.registrationOTPHash = undefined;
+  user.registrationOTPExpires = undefined;
+  user.registrationOTPAttempts = 0;
+  await user.save();
+  const setupToken = jwt.sign({ id: user._id, purpose: 'email_setup' }, process.env.JWT_SECRET, { expiresIn: '15m' });
+  await logActivity(user, 'EMAIL_VERIFIED', email);
+  res.json({ success: true, message: 'Email verified successfully.', setupToken });
+};
+
+// @route POST /api/auth/register/set-password  (Step 3)
+const setRegistrationPassword = async (req, res) => {
+  const v = new Validator(req.body)
+    .string('setupToken', { required: true, label: 'Setup token' })
+    .password('password', { required: true });
+  if (v.fail(res)) return;
+  const { setupToken, password } = v.data;
+
+  let decoded;
+  try {
+    decoded = jwt.verify(setupToken, process.env.JWT_SECRET);
+  } catch {
+    return res.status(400).json({ success: false, message: 'Session expired. Please register again.' });
+  }
+  if (decoded.purpose !== 'email_setup') return res.status(400).json({ success: false, message: 'Invalid setup token' });
+
+  const user = await User.findById(decoded.id);
+  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+  if (!user.emailVerified) return res.status(400).json({ success: false, message: 'Email not verified. Please complete verification first.' });
+
+  user.password = password;
+  await user.save();
+  const student = await Student.findOne({ user: user._id });
+  await logActivity(user, 'STUDENT_REGISTERED', `${user.name} (${student?.rollNumber || ''})`);
+  res.status(201).json({
+    success: true,
+    token: generateToken(user),
+    user: { id: user._id, name: user.name, email: user.email, role: user.role, profileId: student?._id },
+  });
+};
+
 // @route POST /api/auth/register/company
 const registerCompany = async (req, res) => {
-  try {
-    const { name, email, password, companyName, website, industry, description, hrPhone, hrEmail } = req.body;
-
-    if (!name || !email || !password || !companyName) {
-      return res.status(400).json({ success: false, message: 'Please fill all required fields' });
-    }
-
-    const existing = await User.findOne({ email });
-    if (existing) return res.status(400).json({ success: false, message: 'Email already registered' });
-
-    const user = await User.create({ name, email, password, role: 'company' });
-
-    const placementRequirement = req.body.jobTitle
-      ? {
-        jobTitle: req.body.jobTitle,
-        jobDescription: req.body.jobDescription || description || '',
-        jobType: req.body.jobType || 'Full-Time',
-        packageLPA: req.body.packageLPA ? Number(req.body.packageLPA) : undefined,
-        location: req.body.location || '',
-        eligibility: req.body.eligibility || {
-          branches: req.body.branches
-            ? Array.isArray(req.body.branches)
-              ? req.body.branches
-              : req.body.branches.split(',').map((s) => s.trim())
-            : [],
-          batch: req.body.batch ? Number(req.body.batch) : 2026,
-          minCgpa: req.body.minCgpa ? Number(req.body.minCgpa) : 0,
-          maxBacklogs: req.body.maxBacklogs ? Number(req.body.maxBacklogs) : 0,
-          min10th: req.body.min10th ? Number(req.body.min10th) : 0,
-          min12th: req.body.min12th ? Number(req.body.min12th) : 0,
-        },
-        applicationDeadline: req.body.applicationDeadline || undefined,
-      }
-      : undefined;
-
-    const company = await Company.create({
-      user: user._id,
-      companyName,
-      website,
-      industry,
-      description,
-      hrContact: { name, phone: hrPhone, email: hrEmail || email },
-      ...(placementRequirement ? { placementRequirement } : {}),
-    });
-
-    await logActivity(user, 'COMPANY_REGISTERED', companyName);
-
-    res.status(201).json({
-      success: true,
-      token: generateToken(user),
-      user: { id: user._id, name: user.name, email: user.email, role: user.role, profileId: company._id },
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+  const v = new Validator(req.body)
+    .name('name', { required: true, label: 'Contact person name' })
+    .email('email', { required: true })
+    .password('password', { required: true })
+    .string('companyName', { required: true, label: 'Company name', min: 2, max: 100 })
+    .url('website', { label: 'Website' })
+    .string('industry', { label: 'Industry', max: 60 })
+    .string('description', { label: 'Description', max: 1000 })
+    .phone('hrPhone', { label: 'HR phone' })
+    .email('hrEmail', { label: 'HR email' });
+  if (req.body.confirmPassword !== undefined && req.body.confirmPassword !== req.body.password) {
+    v._err('confirmPassword', 'Passwords do not match');
   }
+
+  // Optional first placement requirement submitted together with the sign-up
+  let requirement;
+  if (req.body.jobTitle) {
+    const dv = validateDriveInput(req.body, { role: 'company' });
+    Object.entries(dv.v.errors).forEach(([k, m]) => v._err(k, m));
+    const rawElig = req.body.eligibility || {
+      branches: req.body.branches, batch: req.body.batch, minCgpa: req.body.minCgpa,
+      maxBacklogs: req.body.maxBacklogs, min10th: req.body.min10th, min12th: req.body.min12th,
+    };
+    const cleaned = {};
+    Object.entries(rawElig || {}).forEach(([k, val]) => { if (val !== undefined && val !== '') cleaned[k] = val; });
+    const ev = validateEligibility(cleaned, { partial: true });
+    Object.entries(ev.errors).forEach(([k, m]) => v._err(`eligibility.${k}`, m));
+    requirement = { ...dv.data, eligibility: ev.data };
+    delete requirement.openings;
+    delete requirement.requiredDocuments;
+  }
+  if (v.fail(res)) return;
+  const d = v.data;
+
+  if (await User.findOne({ email: d.email })) {
+    return res.status(409).json({ success: false, message: 'Email already registered', errors: { email: 'Email already registered' } });
+  }
+  if (await Company.findOne({ companyName: new RegExp(`^${escapeRegex(d.companyName)}$`, 'i') })) {
+    return res.status(409).json({ success: false, message: 'A company with this name is already registered', errors: { companyName: 'A company with this name is already registered' } });
+  }
+
+  const user = await User.create({ name: d.name, email: d.email, password: d.password, role: 'company', emailVerified: true });
+  const company = await Company.create({
+    user: user._id,
+    companyName: d.companyName,
+    website: d.website,
+    industry: d.industry,
+    description: d.description,
+    hrContact: { name: d.name, phone: d.hrPhone, email: d.hrEmail || d.email },
+    ...(requirement ? { placementRequirement: requirement } : {}),
+  });
+  await logActivity(user, 'COMPANY_REGISTERED', d.companyName);
+  res.status(201).json({
+    success: true,
+    token: generateToken(user),
+    user: { id: user._id, name: user.name, email: user.email, role: user.role, profileId: company._id },
+  });
 };
 
-// @desc  Login for ALL roles (student, tpo, admin, company)
-// @route POST /api/auth/login
+// @route POST /api/auth/login   (all roles)
 const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Email and password required' });
-    }
+  const v = new Validator(req.body)
+    .email('email', { required: true })
+    .string('password', { required: true, label: 'Password', max: 200 });
+  if (v.fail(res)) return;
+  const { email, password } = v.data;
 
-    const user = await User.findOne({ email }).select('+password');
-    if (!user || !(await user.matchPassword(password))) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password' });
-    }
-
-    if (!user.isActive) {
-      return res.status(403).json({ success: false, message: 'Your account has been deactivated. Contact admin.' });
-    }
-
-    // Block student accounts that started registration but never completed OTP verification
-    if (user.role === 'student' && !user.emailVerified) {
-      return res.status(403).json({
-        success: false,
-        message: 'Email not verified. Please complete registration by verifying your email.',
-      });
-    }
-
-    user.lastLogin = new Date();
-    await user.save();
-
-    let profileId = null;
-    if (user.role === 'student') {
-      const s = await Student.findOne({ user: user._id });
-      profileId = s?._id;
-    } else if (user.role === 'company') {
-      const c = await Company.findOne({ user: user._id });
-      profileId = c?._id;
-    }
-
-    await logActivity(user, 'LOGIN', `${user.role} logged in`);
-
-    res.json({
-      success: true,
-      token: generateToken(user),
-      user: { id: user._id, name: user.name, email: user.email, role: user.role, profileId },
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+  const user = await User.findOne({ email }).select('+password');
+  if (!user || !(await user.matchPassword(password))) {
+    return res.status(401).json({ success: false, message: 'Invalid email or password' });
   }
+  if (!user.isActive) {
+    return res.status(403).json({ success: false, message: 'Your account has been deactivated. Contact admin.' });
+  }
+  if (user.role === 'student' && !user.emailVerified) {
+    return res.status(403).json({ success: false, message: 'Email not verified. Please complete registration by verifying your email.' });
+  }
+
+  user.lastLogin = new Date();
+  await user.save();
+
+  let profileId = null;
+  if (user.role === 'student') profileId = (await Student.findOne({ user: user._id }))?._id;
+  else if (user.role === 'company') profileId = (await Company.findOne({ user: user._id }))?._id;
+
+  await logActivity(user, 'LOGIN', `${user.role} logged in`);
+  res.json({
+    success: true,
+    token: generateToken(user),
+    user: { id: user._id, name: user.name, email: user.email, role: user.role, profileId, mustChangePassword: !!user.mustChangePassword },
+  });
 };
 
-// @desc  Get currently logged-in user
 // @route GET /api/auth/me
 const getMe = async (req, res) => {
   const user = req.user;
   let profile = null;
   if (user.role === 'student') profile = await Student.findOne({ user: user._id });
   if (user.role === 'company') profile = await Company.findOne({ user: user._id });
-
-  res.json({ success: true, user: { id: user._id, name: user.name, email: user.email, role: user.role }, profile });
+  res.json({ success: true, user: { id: user._id, name: user.name, email: user.email, role: user.role, mustChangePassword: !!user.mustChangePassword }, profile });
 };
 
-// @desc  Logout (stateless JWT - just logs the event; client discards token)
 // @route POST /api/auth/logout
 const logout = async (req, res) => {
   await logActivity(req.user, 'LOGOUT', `${req.user.role} logged out`);
   res.json({ success: true, message: 'Logged out successfully' });
 };
 
+// @route POST /api/auth/change-password   (every role)
+const changePassword = async (req, res) => {
+  const v = new Validator(req.body)
+    .string('currentPassword', { required: true, label: 'Current password', max: 200 })
+    .password('newPassword', { required: true, label: 'New password' })
+    .string('confirmPassword', { required: true, label: 'Confirm password', max: 200 });
+  if (!v.errors.newPassword && !v.errors.confirmPassword && req.body.confirmPassword !== req.body.newPassword) {
+    v._err('confirmPassword', 'Passwords do not match');
+  }
+  if (!v.errors.newPassword && !v.errors.currentPassword && req.body.currentPassword === req.body.newPassword) {
+    v._err('newPassword', 'New password must be different from your current password');
+  }
+  if (v.fail(res)) return;
+
+  const user = await User.findById(req.user._id).select('+password');
+  if (!user || !(await user.matchPassword(v.data.currentPassword))) {
+    return res.status(400).json({ success: false, message: 'Current password is incorrect', errors: { currentPassword: 'Current password is incorrect' } });
+  }
+  user.password = v.data.newPassword;
+  user.mustChangePassword = false;
+  await user.save();
+  await logActivity(user, 'PASSWORD_CHANGED', user.email);
+  // Older tokens stop working after a password change, so hand back a fresh one for this device
+  res.json({ success: true, message: 'Password changed successfully.', token: generateToken(user) });
+};
+
 // =====================================================================
-// FORGOT PASSWORD — Email OTP verification (3 steps)
+// FORGOT PASSWORD — Email OTP verification (all roles incl. T&P / Admin)
 // =====================================================================
 
-// @desc  Step 1: request an OTP be emailed to the account's address
 // @route POST /api/auth/forgot-password
 const forgotPassword = async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
+  const v = new Validator(req.body).email('email', { required: true });
+  if (v.fail(res)) return;
 
-    const user = await User.findOne({ email });
+  const user = await User.findOne({ email: v.data.email });
+  const genericResponse = { success: true, message: 'If that email is registered, a verification code has been sent.' };
+  // Same answer for unknown / deactivated accounts so the endpoint can't be used to enumerate users.
+  if (!user || !user.isActive) return res.json(genericResponse);
 
-    // Always respond success (even if the email isn't registered) so this
-    // endpoint can't be used to enumerate valid accounts.
-    const genericResponse = {
-      success: true,
-      message: 'If that email is registered, a verification code has been sent.',
-    };
+  const otp = generateOTP();
+  user.passwordResetOTPHash = await hashOTP(otp);
+  user.passwordResetOTPExpires = getExpiry();
+  user.passwordResetAttempts = 0;
+  await user.save();
 
-    if (!user) {
-      return res.json(genericResponse);
-    }
-
-    const otp = generateOTP();
-    user.passwordResetOTPHash = await hashOTP(otp);
-    user.passwordResetOTPExpires = getExpiry();
-    user.passwordResetAttempts = 0;
-    await user.save();
-
-    await sendEmail({
-      to: user.email,
-      subject: 'Your Placement Portal password reset code',
-      html: `
-        <p>Hi ${user.name},</p>
-        <p>Your one-time password reset code is:</p>
-        <h2 style="letter-spacing:4px;">${otp}</h2>
-        <p>This code expires in 10 minutes. If you didn't request this, you can ignore this email.</p>`,
-      text: `Your Placement Portal password reset code is ${otp}. It expires in 10 minutes.`,
-    });
-
-    await logActivity(user, 'PASSWORD_RESET_OTP_SENT', user.email);
-
-    // In test/dev mode with no SMTP configured, the OTP is only visible in
-    // the server console — exposing it here (test env only) lets the
-    // automated test suite verify the flow without a real mailbox.
-    if (process.env.NODE_ENV === 'test') {
-      genericResponse.otpForTesting = otp;
-    }
-
-    res.json(genericResponse);
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+  await sendEmail({
+    to: user.email,
+    subject: 'Your Placement Portal password reset code',
+    html: `<p>Hi ${user.name},</p><p>Your one-time password reset code is:</p><h2 style="letter-spacing:4px;">${otp}</h2><p>This code expires in 10 minutes. If you didn't request this, you can ignore this email.</p>`,
+    text: `Your Placement Portal password reset code is ${otp}. It expires in 10 minutes.`,
+  });
+  await logActivity(user, 'PASSWORD_RESET_OTP_SENT', user.email);
+  if (process.env.NODE_ENV === 'test') genericResponse.otpForTesting = otp;
+  res.json(genericResponse);
 };
 
-// @desc  Step 2: verify the emailed OTP, get a short-lived reset token back
 // @route POST /api/auth/verify-otp
 const verifyOtp = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-    if (!email || !otp) return res.status(400).json({ success: false, message: 'Email and OTP are required' });
+  const v = new Validator(req.body)
+    .email('email', { required: true })
+    .string('otp', { required: true, label: 'Verification code', pattern: /^\d{6}$/, patternMsg: 'Verification code must be 6 digits' });
+  if (v.fail(res)) return;
 
-    const user = await User.findOne({ email }).select('+passwordResetOTPHash +passwordResetOTPExpires +passwordResetAttempts');
-    if (!user || !user.passwordResetOTPHash) {
-      return res.status(400).json({ success: false, message: 'Invalid or expired code. Please request a new one.' });
-    }
-
-    if (user.passwordResetAttempts >= MAX_OTP_ATTEMPTS) {
-      return res.status(429).json({ success: false, message: 'Too many attempts. Please request a new code.' });
-    }
-
-    if (new Date() > new Date(user.passwordResetOTPExpires)) {
-      return res.status(400).json({ success: false, message: 'This code has expired. Please request a new one.' });
-    }
-
-    const valid = await compareOTP(otp, user.passwordResetOTPHash);
-    if (!valid) {
-      user.passwordResetAttempts += 1;
-      await user.save();
-      return res.status(400).json({ success: false, message: 'Incorrect code. Please try again.' });
-    }
-
-    // OTP correct — issue a short-lived, single-purpose reset token instead
-    // of trusting the client to remember it verified the OTP.
-    const resetToken = jwt.sign({ id: user._id, purpose: 'password_reset' }, process.env.JWT_SECRET, {
-      expiresIn: '10m',
-    });
-
-    res.json({ success: true, message: 'Code verified.', resetToken });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+  const user = await User.findOne({ email: v.data.email }).select('+passwordResetOTPHash +passwordResetOTPExpires +passwordResetAttempts');
+  if (!user || !user.passwordResetOTPHash) {
+    return res.status(400).json({ success: false, message: 'Invalid or expired code. Please request a new one.' });
   }
+  if (user.passwordResetAttempts >= MAX_OTP_ATTEMPTS) {
+    return res.status(429).json({ success: false, message: 'Too many attempts. Please request a new code.' });
+  }
+  if (new Date() > new Date(user.passwordResetOTPExpires)) {
+    return res.status(400).json({ success: false, message: 'This code has expired. Please request a new one.' });
+  }
+  if (!(await compareOTP(v.data.otp, user.passwordResetOTPHash))) {
+    user.passwordResetAttempts += 1;
+    await user.save();
+    return res.status(400).json({ success: false, message: 'Incorrect code. Please try again.' });
+  }
+  const resetToken = jwt.sign({ id: user._id, purpose: 'password_reset' }, process.env.JWT_SECRET, { expiresIn: '10m' });
+  res.json({ success: true, message: 'Code verified.', resetToken });
 };
 
-// @desc  Step 3: set a new password using the verified reset token
-// @desc  Step 3: set a new password using the verified reset token
 // @route POST /api/auth/reset-password
 const resetPassword = async (req, res) => {
-  try {
-    const { resetToken, newPassword } = req.body;
-    if (!resetToken || !newPassword) {
-      return res.status(400).json({ success: false, message: 'Reset token and new password are required' });
-    }
-    const complexityErr = validatePasswordComplexity(newPassword);
-    if (complexityErr) {
-      return res.status(400).json({ success: false, message: complexityErr });
-    }
-
-    let decoded;
-    try {
-      decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
-    } catch {
-      return res.status(400).json({ success: false, message: 'Reset session expired. Please start again.' });
-    }
-    if (decoded.purpose !== 'password_reset') {
-      return res.status(400).json({ success: false, message: 'Invalid reset token' });
-    }
-
-    const user = await User.findById(decoded.id).select('+password');
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-
-    // Check if new password is same as old password
-    if (user.password && (await user.matchPassword(newPassword))) {
-      return res.status(400).json({
-        success: false,
-        message: 'New password cannot be the same as your old password. Please choose a different password.',
-      });
-    }
-
-    user.password = newPassword; // pre-save hook re-hashes it
-    user.passwordResetOTPHash = undefined;
-    user.passwordResetOTPExpires = undefined;
-    user.passwordResetAttempts = 0;
-    await user.save();
-
-    await logActivity(user, 'PASSWORD_RESET_COMPLETED', user.email);
-
-    res.json({ success: true, message: 'Password reset successfully. You can now log in.' });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+  const v = new Validator(req.body)
+    .string('resetToken', { required: true, label: 'Reset token' })
+    .password('newPassword', { required: true, label: 'New password' });
+  if (req.body.confirmPassword !== undefined && req.body.confirmPassword !== req.body.newPassword) {
+    v._err('confirmPassword', 'Passwords do not match');
   }
+  if (v.fail(res)) return;
+  const { resetToken, newPassword } = v.data;
+
+  let decoded;
+  try {
+    decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
+  } catch {
+    return res.status(400).json({ success: false, message: 'Reset session expired. Please start again.' });
+  }
+  if (decoded.purpose !== 'password_reset') return res.status(400).json({ success: false, message: 'Invalid reset token' });
+
+  const user = await User.findById(decoded.id).select('+password +passwordResetOTPHash');
+  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+  if (!user.passwordResetOTPHash) {
+    return res.status(400).json({ success: false, message: 'This reset link has already been used. Please start again.' });
+  }
+  if (user.password && (await user.matchPassword(newPassword))) {
+    return res.status(400).json({ success: false, message: 'New password cannot be the same as your old password. Please choose a different password.' });
+  }
+  user.password = newPassword;
+  user.mustChangePassword = false;
+  user.passwordResetOTPHash = undefined;
+  user.passwordResetOTPExpires = undefined;
+  user.passwordResetAttempts = 0;
+  await user.save();
+  await logActivity(user, 'PASSWORD_RESET_COMPLETED', user.email);
+  res.json({ success: true, message: 'Password reset successfully. You can now log in.' });
 };
 
 module.exports = {
+  registerStudent,
   initiateStudentRegistration,
   verifyRegistrationOTP,
   setRegistrationPassword,
@@ -525,6 +421,7 @@ module.exports = {
   login,
   getMe,
   logout,
+  changePassword,
   forgotPassword,
   verifyOtp,
   resetPassword,

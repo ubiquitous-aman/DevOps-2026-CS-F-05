@@ -27,6 +27,10 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
     isActive: { type: Boolean, default: true }, // Admin can activate/deactivate
+    // Set whenever an existing account's password changes — tokens issued before it are rejected (see middleware/auth.js)
+    passwordChangedAt: { type: Date },
+    // True for accounts created with a temporary / default password (seed, admin-created, bulk import, admin reset)
+    mustChangePassword: { type: Boolean, default: false },
     lastLogin: { type: Date },
 
     // ---- Forgot Password / Email OTP ----
@@ -48,6 +52,7 @@ userSchema.pre('save', async function (next) {
   if (!this.isModified('password') || !this.password) return next();
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
+  if (!this.isNew) this.passwordChangedAt = new Date();
   next();
 });
 
