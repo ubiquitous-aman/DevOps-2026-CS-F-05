@@ -24,7 +24,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('feedbackForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const feedback = document.getElementById('feedbackText').value.trim();
+    UI.clearAlert('alertBox');
+    const { ok, values } = Validate.run({ feedbackText: V.text({ label: 'Feedback', required: true, min: 3, max: 1000 }) });
+    if (!ok) return;
+    const feedback = values.feedbackText;
     try {
       await Api.put(`/company/applications/${appId}/feedback`, { feedback });
       UI.showAlert('alertBox', 'Feedback saved.', 'success');
