@@ -54,12 +54,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('messageForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const subject = document.getElementById('msgSubject').value.trim();
-    const message = document.getElementById('msgBody').value.trim();
+    const { ok, values } = Validate.run({
+      msgSubject: V.text({ label: 'Subject', required: true, min: 3, max: 100 }),
+      msgBody: V.text({ label: 'Message', required: true, min: 5, max: 1000 }),
+    });
+    if (!ok) return;
+    const subject = values.msgSubject;
+    const message = values.msgBody;
     try {
       await Api.post('/company/message-tpo', { subject, message });
       UI.showAlert('alertBox', 'Message sent to TPO Cell.', 'success');
       e.target.reset();
+      Validate.clear(e.target);
     } catch (err) {
       UI.showAlert('alertBox', err.message);
     }
