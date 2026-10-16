@@ -19,6 +19,19 @@ async function loadApplications() {
   }
 }
 
+/** next scheduled round (set by the T&P cell) with the time remaining */
+function scheduleHtml(app) {
+  if (!['Applied', 'In Process'].includes(app.status)) return '';
+  const cur = app.roundResults[app.currentRoundIndex];
+  const round = (app.drive.rounds || []).find((r) => cur && String(r._id) === String(cur.round));
+  if (!round) return '';
+  if (!round.date) return `<div class="small text-muted mb-2"><i class="bi bi-clock me-1"></i>${UI.escapeHtml(round.name)}: date will be announced by the T&amp;P cell.</div>`;
+  const ms = new Date(round.date) - Date.now();
+  const d = Math.floor(ms / 86400000), h = Math.floor((ms % 86400000) / 3600000), m = Math.floor((ms % 3600000) / 60000);
+  const left = ms <= 0 ? 'in progress / done' : d > 0 ? `${d}d ${h}h left` : h > 0 ? `${h}h ${m}m left` : `${m}m left`;
+  return `<div class="alert alert-primary py-2 small mb-2"><i class="bi bi-clock me-1"></i><strong>${UI.escapeHtml(round.name)}</strong> — ${UI.formatDateTime(round.date)}${round.venue ? ' @ ' + UI.escapeHtml(round.venue) : ''} <span class="badge bg-primary ms-1">${left}</span></div>`;
+}
+
 function renderApplicationCard(app) {
   const drive = app.drive;
   const stageHtml = app.roundResults
@@ -44,6 +57,7 @@ function renderApplicationCard(app) {
         <span class="${UI.badgeClass(app.status)}">${app.status}</span>
       </div>
       <div class="stage-timeline my-3">${stageHtml}</div>
+      ${scheduleHtml(app)}
       ${app.roundResults[app.currentRoundIndex]?.feedback ? `<div class="alert alert-info small py-2 mb-2"><i class="bi bi-chat-left-quote me-1"></i>${UI.escapeHtml(app.roundResults[app.currentRoundIndex].feedback)}</div>` : ''}
       ${canWithdraw ? `<button class="btn btn-sm btn-outline-danger" onclick="withdraw('${app._id}')"><i class="bi bi-x-circle me-1"></i>Withdraw Application</button>` : ''}
     </div>

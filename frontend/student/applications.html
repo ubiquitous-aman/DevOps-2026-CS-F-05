@@ -13,7 +13,10 @@
 <div class="dashboard-shell">
   <aside class="sidebar" id="appSidebar"></aside>
   <main class="main-content">
-    <h2 id="pageTitle" class="mb-4 fw-bold text-primary-portal">My Applications</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+      <h2 id="pageTitle" class="mb-0 fw-bold text-primary-portal">My Applications</h2>
+      <button class="btn btn-sm btn-outline-primary" onclick="downloadFile('/student/calendar', 'placement-calendar.ics')" title="Deadlines and interview rounds, for Google / Outlook / phone calendars"><i class="bi bi-calendar-plus me-1"></i>Add to calendar (.ics)</button>
+    </div>
     <div id="alertBox"></div>
     <div id="applicationsList"></div>
   </main>
@@ -23,6 +26,7 @@
 <script src="../js/api.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/ui.js"></script>
+<script src="../js/validate.js"></script>
 <script src="../js/layout.js"></script>
 <script src="../js/student/applications.js"></script>
 </body>
