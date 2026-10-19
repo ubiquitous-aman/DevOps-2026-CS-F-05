@@ -54,19 +54,31 @@
     <div class="card section-card mt-3">
       <div class="card-body">
         <h5 class="card-title mb-3"><i class="bi bi-megaphone me-2"></i>Notify Students</h5>
-        <p class="text-muted small">Send a custom notification to selected students by roll number-matched search.</p>
-        <form id="notifyForm" class="row g-2">
-          <div class="col-md-4">
-            <input type="text" class="form-control" id="notifyTitle" placeholder="Title" required>
+        <p class="text-muted small">Send an announcement to all students or to one branch.</p>
+        <form id="notifyForm" class="row g-2" novalidate>
+          <div class="col-md-3">
+            <label class="form-label small mb-1" for="notifyAudience">Send to</label>
+            <select class="form-select" id="notifyAudience">
+              <option value="all">All students</option>
+              <option value="branch">One branch</option>
+            </select>
           </div>
-          <div class="col-md-6">
-            <input type="text" class="form-control" id="notifyMessage" placeholder="Message" required>
+          <div class="col-md-2 d-none" id="notifyBranchWrap">
+            <label class="form-label small mb-1" for="notifyBranch">Branch</label>
+            <select class="form-select" id="notifyBranch"><option value="">Choose...</option></select>
           </div>
-          <div class="col-md-2">
-            <button class="btn btn-primary-portal w-100" type="submit">Notify All</button>
+          <div class="col-md-3">
+            <label class="form-label small mb-1" for="notifyTitle">Title</label>
+            <input type="text" class="form-control" id="notifyTitle" maxlength="100" required>
+          </div>
+          <div class="col">
+            <label class="form-label small mb-1" for="notifyMessage">Message</label>
+            <input type="text" class="form-control" id="notifyMessage" maxlength="500" required>
+          </div>
+          <div class="col-md-2 align-self-end">
+            <button class="btn btn-primary-portal w-100" type="submit" id="notifyBtn">Send</button>
           </div>
         </form>
-        <div class="form-text">This sends the message to every registered student.</div>
       </div>
     </div>
   </main>
@@ -76,6 +88,7 @@
 <script src="../js/api.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/ui.js"></script>
+<script src="../js/validate.js"></script>
 <script src="../js/layout.js"></script>
 <script src="../js/tpo/statistics.js"></script>
 </body>
