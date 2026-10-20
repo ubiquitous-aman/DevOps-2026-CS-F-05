@@ -4186,3 +4186,97 @@ Admin Portal > renders user provisioning console and role management table : PAS
 Public Portal > renders responsive institutional landing page with brand hero : PASS
 TPO Portal > renders placement statistics charts and package analytics report : PASS
 ========================================
+========================================
+College Placement Portal - Jenkins Test Feedback
+========================================
+
+Build Number : 61
+Job Name     : Placement_Portal_CI
+Branch       : utkarsh_kumar
+Commit       : 81c289f01fb1241985e55cfbbc88718366e1e704
+Date         : 2026-10-20 10:00:00
+
+TEST SUMMARY
+----------------------------------------
+Total Tests  : 27
+Passed       : 27
+Failed       : 0
+Skipped      : 0
+Errors       : 0
+Overall      : PASS
+
+TEST CASE RESULTS
+----------------------------------------
+College Placement Management Portal - Backend API Health Check & Server Initialization GET /api/health should return 200 with active status : PASS
+College Placement Management Portal - Backend API Authentication & Student Registration (3-Step OTP) Step 1: initiates student registration and returns test OTP : PASS
+College Placement Management Portal - Backend API Authentication & Student Registration (3-Step OTP) Step 1: rejects student registration with duplicate email : PASS
+College Placement Management Portal - Backend API Authentication & Student Registration (3-Step OTP) Step 2: verifies email OTP and generates setup token : PASS
+College Placement Management Portal - Backend API Authentication & Student Registration (3-Step OTP) Step 2: rejects invalid OTP : PASS
+College Placement Management Portal - Backend API Authentication & Student Registration (3-Step OTP) Step 3: sets student password and returns active JWT token : PASS
+College Placement Management Portal - Backend API Authentication & Student Registration (3-Step OTP) Step 3: rejects setting weak password (< 6 chars) : PASS
+College Placement Management Portal - Backend API Company Registration & Multi-Role Login registers a new recruiting company account : PASS
+College Placement Management Portal - Backend API Company Registration & Multi-Role Login authenticates Admin with valid credentials : PASS
+College Placement Management Portal - Backend API Company Registration & Multi-Role Login authenticates TPO with valid credentials : PASS
+College Placement Management Portal - Backend API Company Registration & Multi-Role Login rejects login attempt with incorrect password : PASS
+College Placement Management Portal - Backend API Company Registration & Multi-Role Login enforces JWT protection on private endpoints : PASS
+College Placement Management Portal - Backend API TPO Management (Drives & Companies) TPO fetches registered companies list : PASS
+College Placement Management Portal - Backend API TPO Management (Drives & Companies) TPO creates placement drive with eligibility rules and rounds timetable : PASS
+College Placement Management Portal - Backend API TPO Management (Drives & Companies) TPO publishes placement drive to notify eligible students : PASS
+College Placement Management Portal - Backend API Student: Eligibility, Application & Tracking student updates profile with academic info matching eligibility : PASS
+College Placement Management Portal - Backend API Student: Eligibility, Application & Tracking student checks eligibility explicitly and confirms eligible status : PASS
+College Placement Management Portal - Backend API Student: Eligibility, Application & Tracking student applies to published drive and receives confirmation : PASS
+College Placement Management Portal - Backend API Student: Eligibility, Application & Tracking student cannot apply twice to the same drive : PASS
+College Placement Management Portal - Backend API Student: Eligibility, Application & Tracking student tracks application history and current round status : PASS
+College Placement Management Portal - Backend API Recruitment Workflow State Machine TPO advances candidate round by round (Aptitude -> Technical -> HR) : PASS
+College Placement Management Portal - Backend API Recruitment Workflow State Machine TPO issues final selection decision and student placement status updates : PASS
+College Placement Management Portal - Backend API Recruitment Workflow State Machine student receives final selection notification in notification feed : PASS
+College Placement Management Portal - Backend API Admin: Governance, User Provisioning & Audit Trail admin fetches user accounts and filters by role : PASS
+College Placement Management Portal - Backend API Admin: Governance, User Provisioning & Audit Trail admin provisions a new TPO user account : PASS
+College Placement Management Portal - Backend API Admin: Governance, User Provisioning & Audit Trail admin views server system health and database statistics : PASS
+College Placement Management Portal - Backend API Admin: Governance, User Provisioning & Audit Trail admin reviews audit trail activity logs : PASS
+========================================
+
+========================================
+College Placement Portal - Jenkins Test Feedback
+========================================
+
+Build Number : 61
+Job Name     : Placement_Portal_CI
+Branch       : utkarsh_gupta
+Commit       : 8bd4791d9a3cfff0a6f44ce686d5c1e49809e51f
+Date         : 2026-10-20 15:00:00
+
+TEST SUMMARY
+----------------------------------------
+Total Tests  : 22
+Passed       : 22
+Failed       : 0
+Skipped      : 0
+Errors       : 0
+Overall      : PASS
+
+TEST CASE RESULTS
+----------------------------------------
+Authentication Pages > renders the Login page with all required headings, inputs, demo buttons, and navigation links : PASS
+Authentication Pages > renders Step-1 Student Registration form with required academic inputs : PASS
+Authentication Pages > renders Step-2 Email OTP Verification view with 6-digit code entry : PASS
+Authentication Pages > renders Step-3 Set Password with live strength checklist rules : PASS
+Authentication Pages > renders 3-Step Forgot Password Wizard with email input and OTP state : PASS
+Authentication Pages > renders Company Self-Registration Portal with placement requirement fields : PASS
+Client Architecture > layout engine provides responsive shell, navbar, and sidebar : PASS
+Client Architecture > API wrapper handles JWT authentication headers and error traps : PASS
+Client Architecture > Auth helper manages session tokens and role guards in localStorage : PASS
+TPO Portal > renders control dashboard with metric counter cards : PASS
+TPO Portal > renders placement drive creation modal with eligibility criteria and rounds : PASS
+TPO Portal > renders company verification and review table : PASS
+Student Portal > renders overview dashboard with placement alerts and drives feed : PASS
+Student Portal > renders eligible placement drives feed with real-time application modal : PASS
+Student Portal > renders application history timeline and round stages container : PASS
+TPO Portal > renders applicant management console with drive selector and round action modals : PASS
+Student Portal > renders live notification feed and unread counter badges : PASS
+Company Portal > renders recruitment dashboard and candidate evaluation views : PASS
+Admin Portal > renders system audit trail logs table with action filters : PASS
+Admin Portal > renders user provisioning console and role management table : PASS
+Public Portal > renders responsive institutional landing page with brand hero : PASS
+TPO Portal > renders placement statistics charts and package analytics report : PASS
+========================================
