@@ -32,14 +32,13 @@
         <form id="loginForm" novalidate>
           <div class="mb-3">
             <label for="email" class="form-label">Email address</label>
-            <input type="email" class="form-control" id="email" name="email" placeholder="you@example.com" required>
-            <div class="invalid-feedback">Please enter a valid email.</div>
+            <input type="email" class="form-control" id="email" name="email" placeholder="you@example.com" required
+              autocomplete="username">
           </div>
           <div class="mb-2">
             <label for="password" class="form-label">Password</label>
-            <input type="password" class="form-control" id="password" name="password" placeholder="••••••••" required
-              minlength="6">
-            <div class="invalid-feedback">Password must be at least 6 characters.</div>
+            <input type="password" class="form-control" id="password" name="password" placeholder="Your password" required
+              autocomplete="current-password">
           </div>
           <div class="text-end mb-3">
             <a href="forgot-password.html" class="small">Forgot password?</a>
@@ -60,7 +59,8 @@
               class="bi bi-building me-1"></i>Company</a>
         </div>
         <p class="text-center text-muted small mt-3 mb-0">
-          TPO &amp; Admin accounts are provisioned by the system administrator.
+          TPO &amp; Admin accounts are created by the system administrator.
+          Forgot your password? Use <a href="forgot-password.html">Forgot password</a> — it works for every role.
         </p>
       </div>
     </div>
@@ -71,6 +71,7 @@
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/ui.js"></script>
+<script src="js/validate.js"></script>
   <script src="js/login.js"></script>
 </body>
 

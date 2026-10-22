@@ -30,12 +30,12 @@
         <div class="card section-card h-100">
           <div class="card-body">
             <h5 class="card-title mb-3"><i class="bi bi-megaphone me-2"></i>Message TPO Cell</h5>
-            <form id="messageForm">
+            <form id="messageForm" novalidate>
               <div class="mb-2">
-                <input type="text" class="form-control" id="msgSubject" placeholder="Subject" required>
+                <input type="text" class="form-control" id="msgSubject" maxlength="100" placeholder="Subject" required>
               </div>
               <div class="mb-2">
-                <textarea class="form-control" id="msgBody" rows="3" placeholder="Message" required></textarea>
+                <textarea class="form-control" id="msgBody" rows="3" maxlength="1000" placeholder="Message" required></textarea>
               </div>
               <button class="btn btn-primary-portal btn-sm" type="submit"><i class="bi bi-send me-1"></i>Send</button>
             </form>
@@ -50,6 +50,7 @@
 <script src="../js/api.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/ui.js"></script>
+<script src="../js/validate.js"></script>
 <script src="../js/layout.js"></script>
 <script src="../js/company/dashboard.js"></script>
 </body>

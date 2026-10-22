@@ -40,8 +40,8 @@
         <div class="card-body">
           <h6 class="fw-bold mb-2"><i class="bi bi-chat-left-text me-1"></i>Feedback for Current Round</h6>
           <p class="text-muted small">Share interview feedback with the TPO Cell for this candidate's current round. The TPO Cell makes the official clear/reject decision.</p>
-          <form id="feedbackForm">
-            <textarea class="form-control mb-3" id="feedbackText" rows="4" placeholder="e.g. Strong problem solving, needs improvement in communication..."></textarea>
+          <form id="feedbackForm" novalidate>
+            <textarea class="form-control mb-3" id="feedbackText" rows="4" maxlength="1000" placeholder="e.g. Strong problem solving, needs improvement in communication..."></textarea>
             <button type="submit" class="btn btn-primary-portal"><i class="bi bi-send me-1"></i>Save Feedback</button>
           </form>
         </div>
@@ -54,6 +54,7 @@
 <script src="../js/api.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/ui.js"></script>
+<script src="../js/validate.js"></script>
 <script src="../js/layout.js"></script>
 <script src="../js/company/feedback.js"></script>
 </body>

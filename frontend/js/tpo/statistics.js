@@ -4,19 +4,35 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await loadStats();
 
+  document.getElementById('notifyBranch').innerHTML += BRANCHES.map((b) => `<option>${b}</option>`).join('');
+  document.getElementById('notifyAudience').addEventListener('change', (e) => {
+    document.getElementById('notifyBranchWrap').classList.toggle('d-none', e.target.value !== 'branch');
+  });
+  const schema = () => ({
+    notifyTitle: V.text({ label: 'Title', required: true, min: 3, max: 100 }),
+    notifyMessage: V.text({ label: 'Message', required: true, min: 5, max: 500 }),
+    ...(Validate.val('notifyAudience') === 'branch' ? { notifyBranch: V.select({ label: 'a branch', allowed: BRANCHES }) } : {}),
+  });
+
   document.getElementById('notifyForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const title = document.getElementById('notifyTitle').value.trim();
-    const message = document.getElementById('notifyMessage').value.trim();
-    try {
-      const { students } = await Api.get('/tpo/students');
-      const studentIds = students.map((s) => s._id);
-      const res = await Api.post('/tpo/notify', { studentIds, title, message });
-      UI.showAlert('alertBox', `Notified ${res.notified} student(s).`, 'success');
-      e.target.reset();
-    } catch (err) {
-      UI.showAlert('alertBox', err.message);
-    }
+    UI.clearAlert('alertBox');
+    const { ok, values } = Validate.run(schema());
+    if (!ok) return;
+    const audience = Validate.val('notifyAudience');
+    const payload = { audience, title: values.notifyTitle, message: values.notifyMessage };
+    if (audience === 'branch') payload.branch = values.notifyBranch;
+    await withButton(document.getElementById('notifyBtn'), 'Sending...', async () => {
+      try {
+        const res = await Api.post('/tpo/notify', payload);
+        UI.showAlert('alertBox', `Notified ${res.notified} student(s).`, 'success');
+        e.target.reset();
+        document.getElementById('notifyBranchWrap').classList.add('d-none');
+        Validate.clear(e.target);
+      } catch (err) {
+        UI.showAlert('alertBox', err.message);
+      }
+    });
   });
 });
 

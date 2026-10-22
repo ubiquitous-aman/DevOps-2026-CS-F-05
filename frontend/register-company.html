@@ -32,24 +32,24 @@
         <form id="regForm" novalidate>
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">HR Contact Name</label>
-              <input type="text" class="form-control" id="name" required>
+              <label class="form-label" for="name">HR Contact Name</label>
+              <input type="text" class="form-control" id="name" maxlength="60" required>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Company Name</label>
-              <input type="text" class="form-control" id="companyName" required>
+              <label class="form-label" for="companyName">Company Name</label>
+              <input type="text" class="form-control" id="companyName" maxlength="100" required>
             </div>
             <div class="col-md-7">
-              <label class="form-label">Work Email</label>
+              <label class="form-label" for="email">Work Email</label>
               <input type="email" class="form-control" id="email" required>
             </div>
             <div class="col-md-5">
-              <label class="form-label">HR Phone</label>
-              <input type="tel" class="form-control" id="hrPhone">
+              <label class="form-label" for="hrPhone">HR Phone</label>
+              <input type="tel" class="form-control" id="hrPhone" maxlength="15" placeholder="10-digit number">
             </div>
             <div class="col-md-6">
               <label class="form-label">Industry</label>
-              <input type="text" class="form-control" id="industry" placeholder="e.g. IT Services">
+              <input type="text" class="form-control" id="industry" maxlength="60" placeholder="e.g. IT Services">
             </div>
             <div class="col-md-6">
               <label class="form-label">Website</label>
@@ -57,12 +57,17 @@
             </div>
             <div class="col-12">
               <label class="form-label">Short Description</label>
-              <textarea class="form-control" id="description" rows="2"></textarea>
+              <textarea class="form-control" id="description" rows="2" maxlength="1000"></textarea>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Password</label>
-              <input type="password" class="form-control" id="password" minlength="6" required>
+              <label class="form-label" for="password">Password</label>
+              <input type="password" class="form-control" id="password" autocomplete="new-password" required>
             </div>
+            <div class="col-md-6">
+              <label class="form-label" for="confirmPassword">Confirm password</label>
+              <input type="password" class="form-control" id="confirmPassword" autocomplete="new-password" required>
+            </div>
+            <div class="col-12" id="pwRules"></div>
           </div>
 
           <button type="submit" class="btn btn-primary-portal w-100 py-2 mt-4" id="regBtn">
@@ -82,6 +87,7 @@
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/ui.js"></script>
+<script src="js/validate.js"></script>
   <script src="js/register-company.js"></script>
 </body>
 

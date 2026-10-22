@@ -18,7 +18,7 @@ async function loadNotifications() {
         (n) => `
       <div class="notif-item ${n.isRead ? '' : 'unread'} cursor-pointer" onclick="markRead('${n._id}', this)">
         <div class="d-flex justify-content-between">
-          <div class="fw-semibold">${UI.escapeHtml(n.title)}</div>
+          <div class="fw-semibold">${UI.escapeHtml(n.title)}${n.type === 'reminder' ? ' <span class="badge bg-danger ms-1">Reminder</span>' : n.type === 'schedule' ? ' <span class="badge bg-primary ms-1">Schedule</span>' : ''}</div>
           ${!n.isRead ? '<span class="badge bg-warning text-dark">New</span>' : ''}
         </div>
         <div class="small text-muted">${UI.escapeHtml(n.message)}</div>
