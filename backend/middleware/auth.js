@@ -21,6 +21,11 @@ const protect = async (req, res, next) => {
         return res.status(403).json({ success: false, message: 'Account has been deactivated. Contact admin.' });
       }
 
+      // Sessions started before the last password change are no longer valid
+      if (user.passwordChangedAt && decoded.iat < Math.floor(user.passwordChangedAt.getTime() / 1000)) {
+        return res.status(401).json({ success: false, message: 'Password was changed. Please sign in again.' });
+      }
+
       req.user = user;
       next();
     } catch (err) {

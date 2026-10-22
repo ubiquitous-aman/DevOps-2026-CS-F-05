@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
-const ctrl = require('../controllers/companyController');
+const { wrapController, validateIdParam } = require('../middleware/common');
+const ctrl = wrapController(require('../controllers/companyController'));
 
 router.use(protect, authorize('company'));
+router.param('id', validateIdParam);
 
 router.get('/profile', ctrl.getProfile);
 router.put('/profile', ctrl.updateProfile);
@@ -14,6 +16,7 @@ router.get('/requirements', ctrl.getMyRequirements);
 router.get('/drives/approved', ctrl.getApprovedDrives);
 router.get('/drives/:id/applicants', ctrl.getApplicants);
 router.get('/drives/:id/selected', ctrl.getSelectedCandidates);
+router.get('/drives/:id/export', ctrl.exportApplicants);
 
 router.get('/applications/:id', ctrl.getApplicationById);
 router.put('/applications/:id/feedback', ctrl.updateFeedback);

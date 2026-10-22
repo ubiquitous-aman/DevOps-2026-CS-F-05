@@ -13,8 +13,7 @@ const request = require('supertest');
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 
-let mongoServer;
-let app;
+let mongoServer, app;
 
 describe('College Placement Management Portal - Backend API', function () {
     this.timeout(20000);
@@ -23,8 +22,13 @@ describe('College Placement Management Portal - Backend API', function () {
     let driveId, applicationId;
 
     before(async () => {
-        mongoServer = await MongoMemoryServer.create();
-        process.env.MONGO_URI = mongoServer.getUri();
+        // Set TEST_MONGO_URI to run against an existing MongoDB instead of downloading mongodb-memory-server
+        if (process.env.TEST_MONGO_URI) {
+            process.env.MONGO_URI = process.env.TEST_MONGO_URI;
+        } else {
+            mongoServer = await MongoMemoryServer.create();
+            process.env.MONGO_URI = mongoServer.getUri();
+        }
         await mongoose.connect(process.env.MONGO_URI);
 
         app = require('../server');
@@ -35,8 +39,9 @@ describe('College Placement Management Portal - Backend API', function () {
     });
 
     after(async () => {
+        if (process.env.TEST_MONGO_URI) await mongoose.connection.dropDatabase();
         await mongoose.disconnect();
-        await mongoServer.stop();
+        if (mongoServer) await mongoServer.stop();
     });
 
     // =========================================================================
