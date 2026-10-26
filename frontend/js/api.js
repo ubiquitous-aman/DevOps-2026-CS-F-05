@@ -3,7 +3,7 @@
  * Every network call in this project goes through here, so auth headers,
  * error handling, and JSON parsing are handled consistently (CO-2: AJAX / Asynchronous Data Handling).
  */
-const API_BASE = '/api';
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? '/api' : 'https://placement-backend-wgeh.onrender.com/api';
 
 const Api = {
   token() {
