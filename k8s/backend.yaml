@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: devops-2026-cs-f-05-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "5000"
+            - name: MONGO_URI
+              value: "mongodb://admin:supersecretpassword@mongodb:27017/placement_portal?authSource=admin"
+            - name: JWT_SECRET
+              value: "change_this_to_a_long_random_secret_key_1234567890"
+            - name: JWT_EXPIRES_IN
+              value: "7d"
+            - name: EMAIL_HOST
+              value: "smtp.gmail.com"
+            - name: EMAIL_PORT
+              value: "465"
+            - name: EMAIL_USER
+              value: "soulmortal8090@gmail.com"
+            - name: EMAIL_PASS
+              value: "uzjrzsqdmaglsukz"
+            - name: EMAIL_FROM
+              value: "Placement Portal <no-reply@placement.edu>"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 5000
+      targetPort: 5000
