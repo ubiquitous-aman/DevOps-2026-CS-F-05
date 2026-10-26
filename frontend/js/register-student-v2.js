@@ -1,5 +1,5 @@
 /**
- * register-student.js — single-form student sign-up (validated here AND on the server).
+ * register-student.js ? 2-step student sign-up with email OTP verification.
  */
 document.addEventListener('DOMContentLoaded', () => {
   const thisYear = new Date().getFullYear();
@@ -19,11 +19,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const form = document.getElementById('regForm');
   const btn = document.getElementById('regBtn');
-  document.getElementById('password').addEventListener('input', () => {
-    if (document.getElementById('confirmPassword').value) {
-      Validate.setError(document.getElementById('confirmPassword'), schema.confirmPassword(Validate.val('confirmPassword')));
-    }
-  });
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -43,12 +38,48 @@ document.addEventListener('DOMContentLoaded', () => {
           password: document.getElementById('password').value,
           confirmPassword: document.getElementById('confirmPassword').value,
         });
-        Auth.saveSession(data.token, data.user);
-        window.location.href = '/student/profile.html?welcome=1';
+        
+        // Hide the registration form, show the OTP form
+        form.classList.add('d-none');
+        document.getElementById('verifyOtpForm').classList.remove('d-none');
+        document.getElementById('otpEmailDisplay').textContent = values.email;
+        
+        // Save the token temporarily in case we need it
+        window.tempRegToken = data.token;
+        
       } catch (err) {
         if (!Validate.showServerErrors(err.errors)) UI.showAlert('alertBox', err.message || 'Registration failed. Please try again.');
         else UI.showAlert('alertBox', err.message);
       }
     });
   });
+
+  // Handle OTP Verification
+  const otpForm = document.getElementById('verifyOtpForm');
+  if (otpForm) {
+    otpForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      UI.clearAlert('alertBox');
+      const otp = document.getElementById('otp').value;
+      const email = document.getElementById('otpEmailDisplay').textContent;
+
+      const otpBtn = document.getElementById('verifyOtpBtn');
+      await withButton(otpBtn, '<span class="spinner-border spinner-border-sm me-2"></span>Verifying...', async () => {
+        try {
+          const data = await Api.post('/auth/register/verify-email', { email, otp });
+          
+          if (data.token) {
+            Auth.saveSession(data.token, data.user);
+            window.location.href = '/student/profile.html?welcome=1';
+          } else {
+            // Fallback if backend only returns success but no token
+            Auth.saveSession(window.tempRegToken, data.user || { email });
+            window.location.href = '/student/profile.html?welcome=1';
+          }
+        } catch (err) {
+          UI.showAlert('alertBox', err.message || 'Invalid OTP.');
+        }
+      });
+    });
+  }
 });

@@ -83,6 +83,21 @@
           </button>
         </form>
 
+        <!-- OTP Verification Form (Hidden by default) -->
+          <form id="verifyOtpForm" class="d-none" novalidate>
+          <div class="text-center mb-4">
+            <h5 class="fw-bold">Verify your email</h5>
+            <p class="text-muted small">We sent a 6-digit code to <strong id="otpEmailDisplay"></strong></p>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="otp">Verification Code</label>
+            <input type="text" class="form-control form-control-lg text-center" id="otp" maxlength="6" required>
+          </div>
+          <button type="submit" class="btn btn-primary-portal w-100 py-2" id="verifyOtpBtn">
+            Verify &amp; Login
+          </button>
+        </form>
+
         <p class="text-center text-muted small mt-3 mb-0">
           Already have an account? <a href="login.html">Sign in</a>
         </p>
@@ -96,7 +111,7 @@
   <script src="js/auth.js"></script>
   <script src="js/ui.js"></script>
 <script src="js/validate.js"></script>
-  <script src="js/register-student.js"></script>
+  <script src="js/register-student-v2.js"></script>
 </body>
 
 </html>
