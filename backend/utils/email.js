@@ -1,32 +1,40 @@
 const nodemailer = require('nodemailer');
+const brevo = require('@getbrevo/brevo');
 
-/**
- * sendEmail ? sends via SMTP if EMAIL_USER/EMAIL_PASS are configured in .env.
- * If running on Render, it logs the email to the console to bypass Gmail SMTP timeout.
- */
 const sendEmail = async ({ to, subject, html, text }) => {
-  // 1. If running on Render, bypass Gmail and just log to console
-  if (process.env.RENDER) {
-    console.log('\n========== [RENDER EMAIL MOCK] ==========');
-    console.log(`To: ${to}`);
-    console.log(`Subject: ${subject}`);
-    console.log(text || html?.replace(/<[^>]+>/g, ' '));
-    console.log('=========================================\n');
-    return { devMode: true };
+  // 1. If running on Render, use Brevo API (bypasses blocked SMTP ports)
+  if (process.env.RENDER && process.env.BREVO_API_KEY) {
+    let apiInstance = new brevo.TransactionalEmailsApi();
+    apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
+
+    let sendSmtpEmail = new brevo.SendSmtpEmail();
+    sendSmtpEmail.subject = subject;
+    sendSmtpEmail.htmlContent = html || `<p>${text}</p>`;
+    sendSmtpEmail.sender = { name: "Placement Portal", email: "soulmortal8090@gmail.com" };
+    sendSmtpEmail.to = [{ email: to }];
+
+    try {
+      await apiInstance.sendTransacEmail(sendSmtpEmail);
+      console.log(`[EMAIL SENT] Successfully sent to ${to} via Brevo`);
+      return { devMode: false };
+    } catch (error) {
+      console.error('[EMAIL ERROR] Brevo failed:', error);
+      throw new Error('Failed to send email.');
+    }
   }
 
   // 2. If not configured (e.g., local dev), log to console
   const configured = process.env.NODE_ENV !== 'test' && process.env.EMAIL_USER && process.env.EMAIL_PASS;
   if (!configured) {
-    console.log('\n========== [DEV EMAIL ? SMTP NOT CONFIGURED] ==========');
+    console.log('\n========== [DEV EMAIL] ==========');
     console.log(`To: ${to}`);
     console.log(`Subject: ${subject}`);
     console.log(text || html?.replace(/<[^>]+>/g, ' '));
-    console.log('=========================================================\n');
+    console.log('=================================\n');
     return { devMode: true };
   }
 
-  // 3. Otherwise, send via SMTP
+  // 3. Otherwise, send via SMTP (for local Docker)
   const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST || 'smtp.gmail.com',
     port: Number(process.env.EMAIL_PORT) || 465,
