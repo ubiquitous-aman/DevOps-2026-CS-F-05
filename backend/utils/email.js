@@ -1,24 +1,34 @@
 const nodemailer = require('nodemailer');
-const brevo = require('@getbrevo/brevo');
 
 const sendEmail = async ({ to, subject, html, text }) => {
   // 1. If running on Render, use Brevo API (bypasses blocked SMTP ports)
   if (process.env.RENDER && process.env.BREVO_API_KEY) {
-    let apiInstance = new brevo.TransactionalEmailsApi();
-    apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
-
-    let sendSmtpEmail = new brevo.SendSmtpEmail();
-    sendSmtpEmail.subject = subject;
-    sendSmtpEmail.htmlContent = html || `<p>${text}</p>`;
-    sendSmtpEmail.sender = { name: "Placement Portal", email: "utkarshgupta9549@gmail.com" };
-    sendSmtpEmail.to = [{ email: to }];
-
     try {
-      await apiInstance.sendTransacEmail(sendSmtpEmail);
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'api-key': process.env.BREVO_API_KEY,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: { name: "Placement Portal", email: "utkarshgupta9549@gmail.com" },
+          to: [{ email: to }],
+          subject: subject,
+          htmlContent: html || `<p>${text}</p>`
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('[EMAIL ERROR] Brevo API rejected:', errorData);
+        throw new Error('Failed to send email via Brevo.');
+      }
+
       console.log(`[EMAIL SENT] Successfully sent to ${to} via Brevo`);
       return { devMode: false };
     } catch (error) {
-      console.error('[EMAIL ERROR] Brevo failed:', error);
+      console.error('[EMAIL ERROR] Brevo fetch failed:', error.message);
       throw new Error('Failed to send email.');
     }
   }
