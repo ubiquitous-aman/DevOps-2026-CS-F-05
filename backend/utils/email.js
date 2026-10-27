@@ -10,7 +10,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
     let sendSmtpEmail = new brevo.SendSmtpEmail();
     sendSmtpEmail.subject = subject;
     sendSmtpEmail.htmlContent = html || `<p>${text}</p>`;
-    sendSmtpEmail.sender = { name: "Placement Portal", email: "soulmortal8090@gmail.com" };
+    sendSmtpEmail.sender = { name: "Placement Portal", email: "utkarshgupta9549@gmail.com" };
     sendSmtpEmail.to = [{ email: to }];
 
     try {
