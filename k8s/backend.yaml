@@ -34,7 +34,7 @@ spec:
             - name: EMAIL_PORT
               value: "465"
             - name: EMAIL_USER
-              value: "soulmortal8090@gmail.com"
+              value: "utkarshgupta9549@gmail.com"
             - name: EMAIL_PASS
               value: "uzjrzsqdmaglsukz"
             - name: EMAIL_FROM
@@ -48,5 +48,6 @@ spec:
   selector:
     app: backend
   ports:
-    - port: 5000
+    - name: http
+      port: 5000
       targetPort: 5000

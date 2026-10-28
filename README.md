@@ -38,3 +38,7 @@ npm run seed                # admin@placement.edu / Admin@123 , tpo@placement.ed
 npm start                   # http://localhost:5000
 npm run test:all            # needs MongoDB (or TEST_MONGO_URI)
 npm run reset-password -- email "NewStrong@123"   # emergency reset
+
+## Live Deployment
+**Live URL:** [https://placement-frontend-o8cy.onrender.com](https://placement-frontend-o8cy.onrender.com)
+
