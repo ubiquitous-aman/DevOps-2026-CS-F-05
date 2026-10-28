@@ -8,6 +8,10 @@ const { rejectUnsafeInput, errorHandler } = require('./middleware/common');
 
 const app = express();
 
+const { metricsMiddleware, metricsHandler } = require('./utils/metrics');
+app.use(metricsMiddleware);
+
+
 // ---------- Middleware ----------
 app.disable('x-powered-by');
 // CORS: the portal serves its own frontend, so same-origin needs no CORS at all.
@@ -61,6 +65,8 @@ app.use(errorHandler);
 
 // ---------- Start ----------
 const PORT = process.env.PORT || 5000;
+
+app.get('/metrics', metricsHandler);
 
 if (require.main === module) {
   connectDB().then(() => {
